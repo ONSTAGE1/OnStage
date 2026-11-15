@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OnStage Worship — Presentation Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:wght@600;700&family=Merriweather:wght@400;700&family=Montserrat:wght@500;700;800&family=Lora:wght@500;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/render.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="../index.html" title="OnStage home"><span class="mark">o</span>onstage <em>worship</em></a>
+  <div class="group">
+    <button data-act="newSchedule" title="New schedule">New</button>
+    <button data-act="openSchedule" title="Open a saved schedule (.json)">Open</button>
+    <button data-act="saveSchedule" title="Save schedule to a file (Ctrl+S)">Save</button>
+  </div>
+  <div class="group">
+    <button class="accent-outline" data-act="openOutput" title="Open the projector output window">▣ Output</button>
+    <button data-act="openStage" title="Open the stage / confidence monitor">Stage display</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="group live-ctl">
+    <button data-act="toggleBlack" id="btnBlack" title="Black screen (B)">Black <kbd>B</kbd></button>
+    <button data-act="toggleClear" id="btnClear" title="Hide text, keep background (C)">Clear text <kbd>C</kbd></button>
+    <button data-act="toggleLogo" id="btnLogo" title="Show church logo (L)">Logo <kbd>L</kbd></button>
+    <button data-act="clearLive" title="Clear live slide (Esc)">Clear all <kbd>Esc</kbd></button>
+  </div>
+  <div class="group">
+    <button data-act="messages" id="btnMsg" title="Alerts and stage messages">Alerts</button>
+    <button data-act="countdown" title="Countdown timer">Countdown</button>
+    <button data-act="help" title="Help & shortcuts">?</button>
+  </div>
+</header>
+
+<main class="grid">
+  <section class="panel" id="schedulePanel">
+    <div class="ph"><h2>Schedule</h2>
+      <div class="ph-actions">
+        <button class="icon" data-act="moveUp" title="Move up">↑</button>
+        <button class="icon" data-act="moveDown" title="Move down">↓</button>
+        <button class="icon" data-act="removeItem" title="Remove from schedule">✕</button>
+      </div>
+    </div>
+    <ol id="schedule" class="schedule"></ol>
+    <div class="empty-note" id="scheduleEmpty">Add songs, scriptures, media or presentations from the library below. Double-click an item to send it live.</div>
+  </section>
+
+  <section class="panel" id="previewPanel">
+    <div class="ph"><h2>Preview <span class="ph-title" id="previewTitle"></span></h2>
+      <div class="ph-actions"><button class="primary" data-act="goLive" title="Send preview to live (Enter)">Go live ▸</button></div>
+    </div>
+    <div class="monitor" id="previewMonitor"></div>
+    <div class="slides" id="previewSlides"></div>
+  </section>
+
+  <section class="panel live" id="livePanel">
+    <div class="ph"><h2><span class="live-dot"></span>Live <span class="ph-title" id="liveTitle"></span></h2>
+      <div class="ph-actions" id="videoCtl" hidden>
+        <button class="icon" data-act="videoPlay" title="Play">▶</button>
+        <button class="icon" data-act="videoPause" title="Pause">❚❚</button>
+        <button class="icon" data-act="videoRestart" title="Restart">↺</button>
+      </div>
+    </div>
+    <div class="monitor" id="liveMonitor"></div>
+    <div class="slides" id="liveSlides"></div>
+  </section>
+
+  <aside class="panel ai" id="aiPanel">
+    <div class="ph"><h2><span class="spark">✦</span> AI Verse Assistant</h2></div>
+    <div class="ai-body">
+      <button class="mic" id="micBtn" data-act="toggleMic">
+        <span class="mic-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+        <span class="mic-label" id="micLabel">Start listening</span><kbd>M</kbd>
+      </button>
+      <div class="ai-status" id="aiStatus">Listens to the preacher and puts Bible verses on screen the moment they are mentioned.</div>
+
+      <div class="seg" id="aiMode">
+        <button data-mode="live">Auto live</button>
+        <button data-mode="preview">Auto preview</button>
+        <button data-mode="suggest">Suggest only</button>
+      </div>
+      <details class="ai-opts">
+        <summary>Listening options</summary>
+        <label class="chk"><input type="checkbox" id="optQuotes"> Recognise verses read aloud without a reference</label>
+        <label class="chk"><input type="checkbox" id="optInterim"> React while still speaking (faster)</label>
+        <label class="chk"><input type="checkbox" id="optFollow"> Follow-ups: "verse 17", "next verse", "chapter 4"</label>
+        <label class="chk"><input type="checkbox" id="optRest"> Load rest of chapter so you can arrow forward</label>
+        <label class="row">Language <select id="optLang">
+          <option value="en-US">English (US)</option><option value="en-GB">English (UK)</option>
+          <option value="en-NG">English (Nigeria)</option><option value="en-GH">English (Ghana)</option>
+          <option value="en-KE">English (Kenya)</option><option value="en-ZA">English (South Africa)</option>
+          <option value="en-IN">English (India)</option><option value="en-AU">English (Australia)</option>
+          <option value="en-CA">English (Canada)</option><option value="en-PH">English (Philippines)</option>
+        </select></label>
+        <label class="row">Repeat guard <select id="optCooldown">
+          <option value="10000">10 s</option><option value="25000">25 s</option><option value="60000">1 min</option><option value="180000">3 min</option>
+        </select></label>
+      </details>
+
+      <div class="transcript" id="transcript"><span class="muted">Transcript appears here…</span></div>
+      <form class="sim" id="simForm" autocomplete="off">
+        <input id="simInput" placeholder='Test: type "turn to Romans 8 verse 28"'>
+        <button type="submit">Send</button>
+      </form>
+
+      <div class="det-head"><h3>Detected verses</h3><button class="link" data-act="clearDetections">Clear</button></div>
+      <div class="detections" id="detections"><div class="empty-note">Nothing detected yet.</div></div>
+    </div>
+  </aside>
+
+  <section class="panel library" id="library">
+    <nav class="tabs" id="tabs">
+      <button data-tab="scripture" class="on">Scripture</button>
+      <button data-tab="songs">Songs</button>
+      <button data-tab="media">Media</button>
+      <button data-tab="presentations">Presentations</button>
+      <button data-tab="themes">Themes</button>
+      <button data-tab="settings">Settings</button>
+    </nav>
+
+    <!-- SCRIPTURE -->
+    <div class="tab on" data-tab="scripture">
+      <div class="lib-split">
+        <div class="lib-side">
+          <div class="field-row">
+            <select id="bVersion" title="Bible version"></select>
+            <input id="bQuick" placeholder="e.g. jn 3 16 or 1 Cor 13:4-7" title="Type a reference and press Enter">
+          </div>
+          <div class="field-row">
+            <select id="bBook"></select>
+            <select id="bChapter" title="Chapter"></select>
+          </div>
+          <div class="field-row">
+            <label>Verses <select id="bFrom"></select></label><label>to <select id="bTo"></select></label>
+          </div>
+          <div class="field-row btns">
+            <button data-act="bPreview">Preview</button>
+            <button class="primary" data-act="bLive">Go live</button>
+            <button data-act="bAdd">+ Schedule</button>
+          </div>
+          <form class="field-row" id="bSearchForm"><input id="bSearch" placeholder="Search words, e.g. shepherd"><button type="submit">Search</button></form>
+        </div>
+        <div class="lib-main verses" id="bVerses"></div>
+      </div>
+    </div>
+
+    <!-- SONGS -->
+    <div class="tab" data-tab="songs">
+      <div class="lib-split">
+        <div class="lib-side">
+          <input id="songSearch" placeholder="Search titles and lyrics">
+          <ul class="list" id="songList"></ul>
+          <div class="field-row btns">
+            <button data-act="songNew">New</button>
+            <button data-act="songEdit">Edit</button>
+            <button data-act="songDelete">Delete</button>
+            <button data-act="songImport" title="Import .txt lyric files or an OnStage song library (.json)">Import</button>
+            <button data-act="songExport" title="Export song library">Export</button>
+          </div>
+        </div>
+        <div class="lib-main">
+          <div class="field-row btns"><button data-act="songPreview">Preview</button><button class="primary" data-act="songLive">Go live</button><button data-act="songAdd">+ Schedule</button></div>
+          <div class="lyrics" id="songDetail"><div class="empty-note">Select a song.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MEDIA -->
+    <div class="tab" data-tab="media">
+      <div class="field-row btns">
+        <button class="primary" data-act="mediaUpload">Upload images / videos</button>
+        <span class="sep"></span>
+        <button data-act="mediaPreview">Preview</button>
+        <button data-act="mediaLive">Go live</button>
+        <button data-act="mediaAdd">+ Schedule</button>
+        <span class="sep"></span>
+        <button data-act="bgSongs">Use for songs</button>
+        <button data-act="bgScripture">Use for scripture</button>
+        <button data-act="bgLogo">Use as logo</button>
+        <button data-act="mediaDelete">Delete</button>
+      </div>
+      <div class="media-grid" id="mediaGrid"></div>
+    </div>
+
+    <!-- PRESENTATIONS -->
+    <div class="tab" data-tab="presentations">
+      <div class="lib-split">
+        <div class="lib-side">
+          <ul class="list" id="presList"></ul>
+          <div class="field-row btns">
+            <button data-act="presNew">New</button><button data-act="presEdit">Edit</button>
+            <button data-act="presDelete">Delete</button>
+            <button data-act="presImages" title="Export PowerPoint/Keynote slides as images, then import them here">Images → slides</button>
+          </div>
+        </div>
+        <div class="lib-main">
+          <div class="field-row btns"><button data-act="presPreview">Preview</button><button class="primary" data-act="presLive">Go live</button><button data-act="presAdd">+ Schedule</button></div>
+          <div class="lyrics" id="presDetail"><div class="empty-note">Announcements, sermon points, welcome slides…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- THEMES -->
+    <div class="tab" data-tab="themes">
+      <div class="themes">
+        <div class="theme-pick seg" id="themePick">
+          <button data-theme="song" class="on">Song theme</button>
+          <button data-theme="scripture">Scripture theme</button>
+          <button data-theme="presentation">Presentation theme</button>
+        </div>
+        <div class="theme-split">
+          <form class="theme-form" id="themeForm"></form>
+          <div class="monitor small" id="themeMonitor"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="tab" data-tab="settings">
+      <div class="settings">
+        <fieldset><legend>Scripture</legend>
+          <label class="row">Verses per slide <select id="sVps"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+          <label class="row">Max characters per slide <input type="number" id="sMaxChars" min="80" max="1000" step="10"></label>
+          <label class="chk"><input type="checkbox" id="sVerseNums"> Show verse numbers</label>
+          <label class="chk"><input type="checkbox" id="sShowVersion"> Show version in reference (e.g. "KJV")</label>
+          <div class="row">Import a Bible <button type="button" data-act="bibleImport">Import JSON…</button></div>
+          <p class="muted small">The King James Version (public domain) is built in. If your church holds a licence for another translation you can import it as JSON (66 books → chapters → verses).</p>
+        </fieldset>
+        <fieldset><legend>Songs</legend>
+          <label class="row">Max lines per slide <select id="sLines"><option value="0">Whole section</option><option>2</option><option>3</option><option>4</option><option>6</option></select></label>
+          <label class="chk"><input type="checkbox" id="sCopyright"> Show copyright / CCLI line on the last slide</label>
+          <label class="row">CCLI licence # <input id="sCcli" placeholder="optional"></label>
+        </fieldset>
+        <fieldset><legend>Backup</legend>
+          <div class="row"><button type="button" data-act="backupExport">Export everything</button> <button type="button" data-act="backupImport">Restore backup</button></div>
+          <p class="muted small">Songs, presentations, themes, settings and schedule. Media files stay in this browser.</p>
+        </fieldset>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal"><button class="modal-x" data-act="closeModal">×</button><h2 id="modalTitle"></h2><div id="modalBody"></div><div class="modal-foot" id="modalFoot"></div></div></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput" hidden>
+
+<script src="js/books.js"></script>
+<script src="js/speechref.js"></script>
+<script src="data/kjv.js"></script>
+<script src="js/bible.js"></script>
+<script src="js/render.js"></script>
+<script src="js/store.js"></script>
+<script src="js/listener.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

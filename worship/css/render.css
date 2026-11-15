@@ -1,0 +1,24 @@
+/* Shared stage rendering styles (projector, stage display, monitors) */
+.os-host { position: relative; overflow: hidden; background: #000; }
+.os-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; background: #000; }
+.os-bg, .os-dim, .os-content, .os-black, .os-logo { position: absolute; inset: 0; }
+.os-bg-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity .5s ease; }
+.os-dim { background: #000; transition: opacity .4s; pointer-events: none; }
+.os-content { transition: opacity .35s ease; }
+.os-frame { position: absolute; inset: 0; display: flex; flex-direction: column; opacity: 0; transition: opacity .4s ease; box-sizing: border-box; }
+.os-frame.in { opacity: 1; }
+.os-frame.out { opacity: 0; }
+.os-text { width: 100%; overflow-wrap: break-word; white-space: normal; }
+.os-ref { margin-top: 28px; font-weight: 600; letter-spacing: .02em; opacity: .95; }
+.os-frame .os-ref:first-child { margin: 0 0 28px; }
+.os-vn { font-size: .5em; vertical-align: .9em; opacity: .7; margin-right: .2em; font-weight: 600; }
+.os-count-label { font-size: .38em; letter-spacing: .12em; text-transform: uppercase; opacity: .8; margin-bottom: .2em; }
+.os-count-time { font-variant-numeric: tabular-nums; }
+.os-black { background: #000; opacity: 0; transition: opacity .4s ease; pointer-events: none; }
+.os-logo { background: #000 center/40% no-repeat; opacity: 0; transition: opacity .5s ease; pointer-events: none; }
+.os-alert { position: absolute; left: 0; right: 0; bottom: 0; height: 96px; background: rgba(200, 30, 40, .92); color: #fff;
+  font: 700 54px "DM Sans", sans-serif; display: flex; align-items: center; overflow: hidden; white-space: nowrap;
+  transform: translateY(100%); transition: transform .4s ease; }
+.os-alert.on { transform: none; }
+.os-alert span { display: inline-block; padding-left: 100%; animation: os-scroll 18s linear infinite; }
+@keyframes os-scroll { to { transform: translateX(-100%); } }

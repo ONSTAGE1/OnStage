@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OnStage Output</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Playfair+Display:wght@600;700&family=Merriweather:wght@400;700&family=Montserrat:wght@500;700;800&family=Lora:wght@500;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/render.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+  #out { position: absolute; inset: 0; }
+  #hint { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); color: #999; font: 14px "DM Sans", sans-serif;
+    background: rgba(20,20,20,.85); padding: 8px 14px; border-radius: 8px; transition: opacity 1s; cursor: default; z-index: 9; }
+  /* Stage display */
+  body.stage { cursor: default; font-family: "DM Sans", sans-serif; color: #fff; }
+  #stageView { display: none; position: absolute; inset: 0; padding: 2.2vw; box-sizing: border-box; flex-direction: column; gap: 1.6vw; }
+  body.stage #stageView { display: flex; }
+  body.stage #out { display: none; }
+  .st-top { display: flex; justify-content: space-between; align-items: center; font-size: 3.2vw; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .st-top .count { color: #ff7147; }
+  .st-cur { flex: 1.5; border: 2px solid #2b2d33; border-radius: 1vw; padding: 2vw; font-size: 4vw; line-height: 1.25; overflow: hidden; white-space: pre-line; font-weight: 600; }
+  .st-next { flex: 1; border: 2px dashed #2b2d33; border-radius: 1vw; padding: 1.6vw 2vw; font-size: 2.6vw; line-height: 1.25; color: #9a9ba1; overflow: hidden; white-space: pre-line; }
+  .st-label { font-size: 1.1vw; letter-spacing: .14em; text-transform: uppercase; color: #d5ff54; display: block; margin-bottom: .8vw; font-weight: 600; }
+  .st-msg { background: #d5ff54; color: #111; border-radius: .8vw; padding: 1vw 1.6vw; font-size: 2.6vw; font-weight: 700; display: none; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<div id="hint">Double-click (or press F) for full screen · move this window to the projector</div>
+<div id="stageView">
+  <div class="st-top"><span id="stClock">--:--</span><span id="stTitle" style="font-size:1.6vw;color:#9a9ba1;font-weight:500"></span><span class="count" id="stCount"></span></div>
+  <div class="st-msg" id="stMsg"></div>
+  <div class="st-cur"><span class="st-label">Current</span><span id="stCur"></span></div>
+  <div class="st-next"><span class="st-label">Next</span><span id="stNext"></span></div>
+</div>
+<script src="js/render.js"></script>
+<script>
+(function () {
+  var isStage = /stage=1/.test(location.search);
+  if (isStage) { document.body.classList.add("stage"); document.title = "OnStage Stage Display"; document.getElementById("hint").style.display = "none"; }
+  var stage = OnStageRender.createStage(document.getElementById("out"), { muted: false });
+  var state = {};
+
+  function apply(s) {
+    state = s || {};
+    if (isStage) renderStage(); else stage.render(state);
+  }
+
+  function renderStage() {
+    var s = state.slide;
+    document.getElementById("stCur").textContent = state.black ? "(screen is black)" : (s ? (s.type === "media" ? "[Media]" : (s.text || "").replace(/\[(\d+)\]/g, "$1 ") + (s.ref ? "\n— " + s.ref : "")) : "");
+    var n = state.next;
+    document.getElementById("stNext").textContent = n ? ((n.text || "").replace(/\[(\d+)\]/g, "$1 ") + (n.ref ? "\n— " + n.ref : "")) : "";
+    document.getElementById("stTitle").textContent = state.itemTitle || "";
+    var msg = document.getElementById("stMsg");
+    msg.textContent = state.stageMessage || ""; msg.style.display = state.stageMessage ? "block" : "none";
+  }
+  setInterval(function () {
+    if (!isStage) return;
+    var d = new Date();
+    document.getElementById("stClock").textContent = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    var cd = state.slide && state.slide.countdown;
+    var c = document.getElementById("stCount");
+    if (cd) { var ms = Math.max(0, cd.target - Date.now()); var m = Math.floor(ms / 60000), x = Math.floor(ms / 1000) % 60; c.textContent = m + ":" + (x < 10 ? "0" : "") + x; }
+    else c.textContent = "";
+  }, 500);
+
+  window.addEventListener("message", function (e) {
+    if (e.data && e.data.type === "onstage-state") apply(e.data.state);
+  });
+  try {
+    var bc = new BroadcastChannel("onstage-worship");
+    bc.onmessage = function (e) { if (e.data && e.data.type === "onstage-state") apply(e.data.state); };
+    bc.postMessage({ type: "onstage-hello" });
+  } catch (err) {}
+  if (window.opener) try { window.opener.postMessage({ type: "onstage-hello" }, "*"); } catch (err) {}
+
+  function fs() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(function () {});
+  }
+  document.addEventListener("dblclick", fs);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "f" || e.key === "F") fs();
+    else if (window.opener) try { window.opener.postMessage({ type: "onstage-key", key: e.key }, "*"); } catch (err) {}
+  });
+  setTimeout(function () { document.getElementById("hint").style.opacity = 0; }, 4000);
+  apply({});
+})();
+</script>
+</body>
+</html>
