@@ -55,10 +55,23 @@ GOOD TO KNOW
   speech service turns speech into text. Everything else works offline.
 - Your songs, slides and settings are saved on this computer automatically.
   Use Settings > "Export everything" to make a backup.
-- The King James Version is built in. If your church holds a licence for
-  another translation, import it from Settings.
-- The two sample songs are placeholders. Add your own songs and use them
-  under your CCLI licence.
+- Five Bible translations are built in, all free to use:
+    KJV  - King James Version
+    BSB  - Berean Standard Bible (modern English, like NIV/ESV in style)
+    NHEB - New Heart English Bible (modern English)
+    ASV  - American Standard Version 1901
+    BBE  - Bible in Basic English (simple English)
+  Choose one in the Scripture tab. The AI uses whichever is selected.
+  NIV, ESV, NKJV, NLT and NASB are copyrighted, so they can't be included.
+  If your church holds a licence for one of them in a digital (JSON)
+  format, import it from Settings.
+- 30 classic public-domain hymns are built in (Amazing Grace, It Is Well,
+  Great Is Thy Faithfulness, Holy Holy Holy, Blessed Assurance and more).
+- Modern worship songs are copyrighted. To add them, use your church's
+  CCLI licence: in the Songs tab click "SongSelect (CCLI)", find the song,
+  download the lyrics (.txt), then click Import or drag the file onto the
+  song list. ChordPro (.cho), OpenLyrics (.xml) and plain text files can
+  also be imported.
 
 IF THE AI DOESN'T HEAR ANYTHING
 -------------------------------

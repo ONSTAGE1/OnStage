@@ -34,6 +34,13 @@
     presentation: Object.assign({}, R.DEFAULT_THEME, { bg: "grad:5", size: 90 })
   };
   var songs = Store.get("songs", null) || SAMPLE_SONGS.slice();
+  // Built-in public-domain hymns (skipping any the user deleted).
+  (function () {
+    var hidden = Store.get("hiddenHymns", []);
+    (window.ONSTAGE_HYMNS || []).forEach(function (h) {
+      if (hidden.indexOf(h.id) < 0 && !songs.some(function (s) { return s.id === h.id; })) songs.push(Object.assign({}, h));
+    });
+  })();
   var presentations = Store.get("presentations", null) || SAMPLE_PRES.slice();
   var schedule = Store.get("schedule", []);
   var media = []; // {id, name, kind, url, blob}
@@ -400,8 +407,8 @@
     var list = songs.filter(function (s) { return !q || (s.title + " " + s.lyrics + " " + (s.author || "")).toLowerCase().indexOf(q) >= 0; })
       .sort(function (a, b) { return a.title.localeCompare(b.title); });
     $("#songList").innerHTML = list.map(function (s) {
-      return '<li data-id="' + esc(s.id) + '" class="' + (s.id === ui.selSong ? "sel" : "") + '"><span>' + esc(s.title) + "</span><small>" + esc(s.author || "") + "</small></li>";
-    }).join("") || '<li class="muted">No songs found</li>';
+      return '<li data-id="' + esc(s.id) + '" class="' + (s.id === ui.selSong ? "sel" : "") + '"><span>' + esc(s.title) + (s.builtin ? '<i class="pd">hymn</i>' : "") + "</span><small>" + esc(s.author || "") + "</small></li>";
+    }).join("") || '<li class="muted">No songs found here. Try “Find online” above.</li>';
     renderSongDetail();
   }
   function renderSongDetail() {
@@ -768,6 +775,29 @@
   /* ------------------------------------------------------------------ */
   /* Actions                                                             */
   /* ------------------------------------------------------------------ */
+  function importSongFiles(fs) {
+    var files = Array.prototype.slice.call(fs || []);
+    if (!files.length) return;
+    var added = 0, failed = [];
+    Promise.all(files.map(function (f) {
+      return readText(f).then(function (t) {
+        try {
+          window.OnStageSongFormats.parse(f.name, t).forEach(function (sg) {
+            if (!sg.lyrics || !sg.lyrics.trim()) return;
+            sg.id = sg.id && !songById(sg.id) ? sg.id : Store.uid();
+            var dup = songs.filter(function (x) { return x.title.toLowerCase() === sg.title.toLowerCase() && (x.ccli || "") === (sg.ccli || ""); })[0];
+            if (dup) { Object.assign(dup, { lyrics: sg.lyrics, author: sg.author || dup.author, copyright: sg.copyright || dup.copyright }); }
+            else songs.push({ id: sg.id, title: sg.title, author: sg.author || "", copyright: sg.copyright || "", ccli: sg.ccli || "", lyrics: sg.lyrics });
+            added++; ui.selSong = (dup || songs[songs.length - 1]).id;
+          });
+        } catch (e) { failed.push(f.name); }
+      });
+    })).then(function () {
+      saveSoon(); renderSongs();
+      toast("Imported " + added + " song(s)" + (failed.length ? " — couldn't read " + failed.join(", ") : ""));
+    });
+  }
+
   function selectedScheduleIndex() { return schedule.findIndex(function (s) { return s.id === ui.selItem; }); }
   var ACTIONS = {
     newSchedule: function () {
@@ -823,29 +853,24 @@
     songEdit: function () { var s = songById(ui.selSong); if (s) editSong(s); else toast("Select a song first"); },
     songDelete: function () {
       var s = songById(ui.selSong); if (!s || !confirm("Delete “" + s.title + "”?")) return;
-      songs = songs.filter(function (x) { return x !== s; }); ui.selSong = null; saveSoon(); renderSongs();
+      songs = songs.filter(function (x) { return x !== s; }); ui.selSong = null;
+      if (s.builtin) { var hh = Store.get("hiddenHymns", []); hh.push(s.id); Store.set("hiddenHymns", hh); }
+      saveSoon(); renderSongs();
     },
     songPreview: function () { var s = songById(ui.selSong); if (s) setPreview(songItem(s)); },
     songLive: function () { var s = songById(ui.selSong); if (s) { var it = songItem(s); setPreview(it); goLive(it, 0); } },
     songAdd: function () { var s = songById(ui.selSong); if (s) addToSchedule(songItem(s)); else toast("Select a song first"); },
     songImport: function () {
-      pickFile(".txt,.json,text/plain,application/json", true).then(function (fs) {
-        Promise.all(Array.prototype.map.call(fs || [], function (f) {
-          return readText(f).then(function (t) {
-            if (/\.json$/i.test(f.name)) {
-              var d = JSON.parse(t); var arr = Array.isArray(d) ? d : (d.songs || []);
-              arr.forEach(function (s) { if (s.title && s.lyrics) { s.id = s.id || Store.uid(); if (!songById(s.id)) songs.push(s); } });
-              return arr.length;
-            }
-            var lines = t.replace(/\r/g, "").split("\n");
-            var title = f.name.replace(/\.[^.]+$/, "");
-            if (lines[0] && lines[1] === "") { title = lines[0].trim(); lines = lines.slice(2); }
-            songs.push({ id: Store.uid(), title: title, author: "", copyright: "", ccli: "", lyrics: lines.join("\n").trim() });
-            return 1;
-          });
-        })).then(function (n) { saveSoon(); renderSongs(); toast("Imported " + n.reduce(function (a, b) { return a + b; }, 0) + " song(s)"); })
-          .catch(function () { toast("Could not import that file"); });
-      });
+      pickFile(".txt,.usr,.cho,.chordpro,.chopro,.pro,.crd,.xml,.json,text/plain,application/json,text/xml", true).then(importSongFiles);
+    },
+    searchSongSelect: function () {
+      var q = $("#songSearch").value.trim();
+      window.open("https://songselect.ccli.com/search/results?search=" + encodeURIComponent(q), "_blank");
+      toast("On SongSelect: open the song → Lyrics → Download (.txt), then click Import");
+    },
+    searchHymnary: function () {
+      var q = $("#songSearch").value.trim();
+      window.open("https://hymnary.org/search?qu=" + encodeURIComponent(q ? "in:texts " + q : "in:texts"), "_blank");
     },
     songExport: function () { download("onstage-songs.json", { app: "OnStage Worship", type: "songs", songs: songs }); },
 
@@ -1014,7 +1039,16 @@
 
     // scripture
     fillVersions(); fillBooks();
-    $("#bVersion").onchange = function () { settings.version = this.value; saveSoon(); setBibleSel({ book: ui.bibleSel.book, chapter: Math.min(ui.bibleSel.chapter, bible().chapterCount(ui.bibleSel.book)) }); };
+    $("#bVersion").onchange = function () {
+      var v = this.value, sel = this;
+      sel.disabled = true; toast("Loading " + v + "…");
+      BibleReg.ensure(v).then(function () {
+        settings.version = v; saveSoon();
+        setBibleSel({ book: ui.bibleSel.book, chapter: Math.min(ui.bibleSel.chapter, bible().chapterCount(ui.bibleSel.book)), verse: ui.bibleSel.from, verseEnd: ui.bibleSel.to > ui.bibleSel.from ? ui.bibleSel.to : null });
+        bible().buildIndex(); toast(v + " ready");
+      }).catch(function (e) { toast(e.message); sel.value = settings.version; })
+        .then(function () { sel.disabled = false; });
+    };
     $("#bBook").onchange = function () { setBibleSel({ book: +this.value, chapter: 1 }); };
     $("#bChapter").onchange = function () { setBibleSel({ book: ui.bibleSel.book, chapter: +this.value }); };
     $("#bFrom").onchange = function () { var f = +this.value; setBibleSel({ book: ui.bibleSel.book, chapter: ui.bibleSel.chapter, verse: f, verseEnd: Math.max(f, ui.bibleSel.to) }); bPreview(); };
@@ -1046,6 +1080,10 @@
     $("#songSearch").oninput = renderSongs;
     $("#songList").onclick = function (e) { var li = e.target.closest("li[data-id]"); if (li) { ui.selSong = li.dataset.id; renderSongs(); ACTIONS.songPreview(); } };
     $("#songList").ondblclick = function (e) { if (e.target.closest("li[data-id]")) ACTIONS.songAdd(); };
+    var sl = $("#songList");
+    sl.addEventListener("dragover", function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types, "Files") >= 0) { e.preventDefault(); sl.classList.add("drop"); } });
+    sl.addEventListener("dragleave", function () { sl.classList.remove("drop"); });
+    sl.addEventListener("drop", function (e) { e.preventDefault(); sl.classList.remove("drop"); importSongFiles(e.dataTransfer.files); });
     $("#presList").onclick = function (e) { var li = e.target.closest("li[data-id]"); if (li) { ui.selPres = li.dataset.id; renderPres(); ACTIONS.presPreview(); } };
     $("#presList").ondblclick = function (e) { if (e.target.closest("li[data-id]")) ACTIONS.presAdd(); };
     presentations = presentations.filter(function (p) { return !p.hidden; });
@@ -1093,7 +1131,17 @@
     }
 
     // Async: imported Bibles, media
-    Store.all("bibles").then(function (rows) { rows.forEach(function (b) { BibleReg.add(b); }); fillVersions(); }).catch(function () {});
+    Store.all("bibles").then(function (rows) { rows.forEach(function (b) { BibleReg.add(b); }); fillVersions(); }).catch(function () {})
+      .then(function () {
+        // Load the chosen translation plus any used in the saved schedule.
+        var need = [settings.version].concat(schedule.filter(function (i) { return i.kind === "scripture"; }).map(function (i) { return i.version; }));
+        need = need.filter(function (v, i) { return v && need.indexOf(v) === i; });
+        return Promise.all(need.map(function (v) { return BibleReg.ensure(v).catch(function () {}); }));
+      })
+      .then(function () {
+        if (!BibleReg.isLoaded(settings.version)) settings.version = "KJV";
+        fillVersions(); setBibleSel({ book: ui.bibleSel.book, chapter: ui.bibleSel.chapter, verse: ui.bibleSel.from }); refreshOpenItems();
+      });
     loadMedia().then(function () { renderMedia(); refreshOpenItems(); pushOutput(); });
     pushOutput();
     // Build the quote index when idle so the first detection is instant.

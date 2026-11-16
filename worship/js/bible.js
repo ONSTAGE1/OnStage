@@ -155,8 +155,17 @@
     var cands = touched.slice(0, 12);
     var heardPairs = pairs(words);
     var best = null;
-    for (var i = 0; i < cands.length; i++) {
-      var vt = idx.tokens[cands[i]];
+    // A reading often runs across two verses: also try each candidate joined
+    // with its neighbour in the same chapter.
+    var trials = [];
+    cands.forEach(function (c) {
+      trials.push([c, c]);
+      var r = idx.refs[c], n = idx.refs[c + 1], p = idx.refs[c - 1];
+      if (n && n[0] === r[0] && n[1] === r[1]) trials.push([c, c + 1]);
+      if (p && p[0] === r[0] && p[1] === r[1]) trials.push([c - 1, c]);
+    });
+    for (var i = 0; i < trials.length; i++) {
+      var vt = trials[i][0] === trials[i][1] ? idx.tokens[trials[i][0]] : idx.tokens[trials[i][0]].concat(idx.tokens[trials[i][1]]);
       var vp = pairs(vt);
       var hit = 0;
       for (var k in heardPairs) if (vp[k]) hit++;
@@ -164,9 +173,11 @@
       var ratio = denom ? hit / denom : 0;
       if (hit >= (opts.minPairs || 4) && ratio >= (opts.minRatio || 0.45)) {
         var score = ratio * 0.7 + Math.min(1, hit / 10) * 0.3;
+        var span = trials[i][0] !== trials[i][1];
+        if (span) score -= 0.02; // prefer a single verse when equally good
         if (!best || score > best.score) {
-          var r = idx.refs[cands[i]];
-          best = { book: r[0], chapter: r[1], verse: r[2], verseEnd: null, score: score, kind: "quote" };
+          var r = idx.refs[trials[i][0]];
+          best = { book: r[0], chapter: r[1], verse: r[2], verseEnd: span ? idx.refs[trials[i][1]][2] : null, score: score, kind: "quote" };
         }
       }
     }
@@ -181,13 +192,46 @@
 
   /* -------- Registry of loaded Bible versions -------- */
   var registry = {};
+  /* Built-in translations (all public domain / CC0). Loaded on first use. */
+  var CATALOG = [
+    { id: "KJV", name: "King James Version", file: "data/kjv.js" },
+    { id: "BSB", name: "Berean Standard Bible (modern)", file: "data/bsb.js" },
+    { id: "NHEB", name: "New Heart English Bible (modern)", file: "data/nheb.js" },
+    { id: "ASV", name: "American Standard Version 1901", file: "data/asv.js" },
+    { id: "BBE", name: "Bible in Basic English (simple)", file: "data/bbe.js" }
+  ];
+  var pending = {};
   function load() {
     var src = root.ONSTAGE_BIBLES || {};
     for (var k in src) if (!registry[k]) registry[k] = new Bible(src[k]);
   }
   function add(data) { registry[data.id] = new Bible(data); return registry[data.id]; }
-  function get(id) { load(); return registry[id] || registry[Object.keys(registry)[0]]; }
-  function versions() { load(); return Object.keys(registry).map(function (k) { return { id: k, name: registry[k].name }; }); }
+  function get(id) { load(); return registry[id] || registry.KJV || registry[Object.keys(registry)[0]]; }
+  function isLoaded(id) { load(); return !!registry[id]; }
+  /* Load a built-in translation's data file (works from file:// too). */
+  function ensure(id) {
+    load();
+    if (registry[id]) return Promise.resolve(registry[id]);
+    var entry = CATALOG.filter(function (c) { return c.id === id; })[0];
+    if (!entry) return Promise.resolve(get(id));
+    if (pending[id]) return pending[id];
+    pending[id] = new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = entry.file;
+      s.onload = function () { load(); delete pending[id]; registry[id] ? resolve(registry[id]) : reject(new Error("Bible data missing")); };
+      s.onerror = function () { delete pending[id]; reject(new Error("Could not load " + entry.file)); };
+      document.head.appendChild(s);
+    });
+    return pending[id];
+  }
+  function versions() {
+    load();
+    var out = CATALOG.map(function (c) { return { id: c.id, name: registry[c.id] ? registry[c.id].name : c.name }; });
+    Object.keys(registry).forEach(function (k) {
+      if (!CATALOG.some(function (c) { return c.id === k; })) out.push({ id: k, name: registry[k].name + " (imported)" });
+    });
+    return out;
+  }
 
   /* Convert common JSON Bible layouts into our [book][chapter][verse] form. */
   function fromJSON(json, id, name) {
@@ -212,5 +256,5 @@
     return { id: id, name: name || id, books: books };
   }
 
-  root.OnStageBible = { get: get, add: add, versions: versions, fromJSON: fromJSON, Bible: Bible, tokens: tokens };
+  root.OnStageBible = { get: get, add: add, ensure: ensure, isLoaded: isLoaded, versions: versions, fromJSON: fromJSON, Bible: Bible, tokens: tokens, CATALOG: CATALOG };
 })(this);

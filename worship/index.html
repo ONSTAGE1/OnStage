@@ -161,12 +161,17 @@
       <div class="lib-split">
         <div class="lib-side">
           <input id="songSearch" placeholder="Search titles and lyrics">
+          <div class="field-row btns online-search" title="Search online for songs you are licensed to use">
+            <span class="muted small">Find online:</span>
+            <button data-act="searchSongSelect" title="CCLI SongSelect – download lyrics with your church's CCLI licence, then Import">SongSelect (CCLI)</button>
+            <button data-act="searchHymnary" title="Hymnary.org – free public-domain hymn texts">Hymnary.org</button>
+          </div>
           <ul class="list" id="songList"></ul>
           <div class="field-row btns">
             <button data-act="songNew">New</button>
             <button data-act="songEdit">Edit</button>
             <button data-act="songDelete">Delete</button>
-            <button data-act="songImport" title="Import .txt lyric files or an OnStage song library (.json)">Import</button>
+            <button data-act="songImport" title="Import SongSelect (.txt/.usr), ChordPro, OpenLyrics (.xml), plain text or OnStage (.json) song files. You can also drag files onto the song list.">Import</button>
             <button data-act="songExport" title="Export song library">Export</button>
           </div>
         </div>
@@ -260,6 +265,8 @@
 <script src="js/speechref.js"></script>
 <script src="data/kjv.js"></script>
 <script src="js/bible.js"></script>
+<script src="data/hymns.js"></script>
+<script src="js/songformats.js"></script>
 <script src="js/render.js"></script>
 <script src="js/store.js"></script>
 <script src="js/listener.js"></script>

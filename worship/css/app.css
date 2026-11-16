@@ -203,3 +203,8 @@ legend { color: var(--lime); font-weight: 600; padding: 0 5px; }
   .panel { min-height: 260px; }
   .lib-split, .theme-split { grid-template-columns: 1fr; }
 }
+
+.online-search { gap: 5px; }
+.online-search button { padding: 3px 8px; font-size: 11.5px; }
+.list li .pd { font: 500 9px "DM Mono", monospace; color: var(--lime); border: 1px solid #3c4a1d; border-radius: 3px; padding: 0 4px; margin-left: 6px; }
+.list.drop { outline: 2px dashed var(--lime); outline-offset: -4px; }
