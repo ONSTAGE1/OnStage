@@ -8,27 +8,30 @@ preacher and shows Bible verses on screen automatically.
 INSTALL ON WINDOWS (10 or 11)
 -----------------------------
 1. Right-click the downloaded zip file and choose "Extract All...".
+   (Don't run anything from inside the zip - extract it first.)
    Put the folder somewhere permanent, such as Documents.
-2. Open the folder and double-click "Start OnStage Worship.bat".
+2. Open the extracted folder and double-click "Start OnStage Worship.bat".
    - If Windows says "Windows protected your PC", click "More info" and
      then "Run anyway". This happens because the program is new and not
      signed. It only needs doing once.
-3. OnStage Worship opens in its own window. A shortcut called
-   "OnStage Worship" is added to your Desktop. Use that next time.
-4. A small minimised window called "OnStage Worship" also opens.
-   Keep it open while you use the app. Closing it stops the app.
+3. OnStage Worship opens in its own Microsoft Edge window. A shortcut
+   called "OnStage Worship" is added to your Desktop. Use that next time.
 
-Microsoft Edge (already on every Windows PC) or Google Chrome is used to
-run the app, so nothing else needs installing.
+If the .bat file still won't open (some computers block .bat files):
+   right-click "index.html" > Open with > Microsoft Edge (or Google Chrome).
+   That runs the exact same app.
 
 
 INSTALL ON MAC
 --------------
 1. Double-click the zip file to unpack it.
-2. Right-click "Start OnStage Worship (Mac).command" and choose "Open"
-   (the first time only). Then click "Open" again to confirm.
-3. The app opens in a Google Chrome window. Install Chrome first if you
-   don't have it: https://www.google.com/chrome/
+2. Right-click "index.html" > Open With > Google Chrome.
+   (Install Chrome first if needed: https://www.google.com/chrome/)
+
+   Or double-click "Start OnStage Worship (Mac).command" to open it in its
+   own window. If macOS says it "cannot be opened" or "Apple could not
+   verify" it: open System Settings > Privacy & Security, scroll down, and
+   click "Open Anyway" next to the message. Then double-click it again.
 
 
 USING IT ON SUNDAY
@@ -62,8 +65,8 @@ IF THE AI DOESN'T HEAR ANYTHING
 Click "Mic check" in the AI Verse Assistant panel. It tests each step and
 tells you what to fix. The usual causes are:
 
-- The app was opened by double-clicking index.html. Close it and use
-  "Start OnStage Worship.bat" (Windows) or the Mac .command file instead.
+- The app opened in Safari, Firefox or another browser. Open it in
+  Google Chrome or Microsoft Edge (right-click index.html > Open with).
 - The wrong browser. Only Google Chrome and Microsoft Edge include the
   speech service. Brave, Opera, Vivaldi, Firefox and Chromium do not.
 - The microphone is blocked. Click the padlock/settings icon next to the

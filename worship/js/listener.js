@@ -49,8 +49,7 @@
     if (!SR) problems.push({ msg: browser + " has no speech recognition.", fix: "Open OnStage Worship in Google Chrome or Microsoft Edge." });
     else if (!good && browser !== "Safari") problems.push({ msg: browser + " shows the speech feature but does not include the speech service, so nothing is recognised.", fix: "Use Google Chrome or Microsoft Edge." });
     else if (browser === "Safari") problems.push({ msg: "Safari only recognises speech when Siri is turned on, and it often stops after a short time.", fix: "Google Chrome works best. In Safari, turn on Siri in System Settings." });
-    if (location.protocol === "file:") problems.push({ msg: "The app was opened directly from a file, which blocks the microphone.", fix: "Start it with “Start OnStage Worship.bat” (Windows) or the Mac .command file instead of opening index.html." });
-    else if (root.isSecureContext === false) problems.push({ msg: "The app is not on a secure address (https or localhost), so the browser blocks the microphone.", fix: "Use the start file, or open it from an https:// address." });
+    if (root.isSecureContext === false) problems.push({ msg: "The app is not on a secure address (https or localhost), so the browser blocks the microphone.", fix: "Use the start file, or open it from an https:// address." });
     if (navigator.onLine === false) problems.push({ msg: "This computer is offline.", fix: "Speech recognition needs internet. Connect to Wi-Fi or Ethernet." });
     return { browser: browser, good: good && !!SR, problems: problems };
   };

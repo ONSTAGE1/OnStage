@@ -693,10 +693,6 @@
       listener.onStatus(env.problems[0].msg + " " + env.problems[0].fix + " You can still test with the box below.", "error");
       return;
     }
-    if (location.protocol === "file:") {
-      listener.onStatus(env.problems.filter(function (p) { return /file/.test(p.msg); })[0].msg + " " + "Close this window and start OnStage Worship with “Start OnStage Worship.bat” (Windows) or the Mac .command file.", "error");
-      return;
-    }
     setMicUI(true);
     listener.start().then(function (ok) {
       if (!ok) { setMicUI(false); return; }
@@ -715,10 +711,6 @@
   function micCheck() {
     modal("Microphone check", '<p class="muted">Say a few words — for example “John 3 16” — while the test runs (about 10 seconds).</p><ul class="checks" id="checks"><li><span class="st warn">…</span><div><b>Testing…</b></div></li></ul>',
       [{ label: "Close" }]);
-    if (location.protocol === "file:") {
-      $("#checks").innerHTML = checkRow({ name: "How the app was opened", ok: false, detail: "Opened directly from a file, which blocks the microphone.", fix: "Close this window and double-click “Start OnStage Worship.bat” (Windows) or the Mac .command file instead." });
-      return;
-    }
     var poll = setInterval(function () { if (listener.stream) $("#micLevel").style.width = Math.round(listener.level * 100) + "%"; }, 60);
     listener.diagnose().then(function (checks) {
       clearInterval(poll); $("#micLevel").style.width = "0";
