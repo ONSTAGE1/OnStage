@@ -56,3 +56,22 @@ GOOD TO KNOW
   another translation, import it from Settings.
 - The two sample songs are placeholders. Add your own songs and use them
   under your CCLI licence.
+
+IF THE AI DOESN'T HEAR ANYTHING
+-------------------------------
+Click "Mic check" in the AI Verse Assistant panel. It tests each step and
+tells you what to fix. The usual causes are:
+
+- The app was opened by double-clicking index.html. Close it and use
+  "Start OnStage Worship.bat" (Windows) or the Mac .command file instead.
+- The wrong browser. Only Google Chrome and Microsoft Edge include the
+  speech service. Brave, Opera, Vivaldi, Firefox and Chromium do not.
+- The microphone is blocked. Click the padlock/settings icon next to the
+  address (or the ... menu in the app window), choose Site permissions,
+  and set Microphone to Allow. On Windows also check: Settings > Privacy &
+  security > Microphone > "Let desktop apps access your microphone" = On.
+- The wrong microphone. The app uses the computer's DEFAULT microphone.
+  Windows: Settings > System > Sound > Input. Mac: System Settings > Sound
+  > Input. The level bar under "Start listening" moves when sound arrives.
+- No internet. Speech recognition needs an internet connection.
+- The microphone is busy in another program (Zoom, Teams, OBS). Close it.

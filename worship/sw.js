@@ -1,6 +1,6 @@
 /* OnStage Worship — offline support. Caches the app so it runs without internet
    (the AI microphone feature still needs internet for the browser's speech service). */
-var CACHE = "onstage-worship-v1";
+var CACHE = "onstage-worship-v2";
 var FILES = [
   "./", "./index.html", "./output.html", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png",
   "./css/app.css", "./css/render.css",

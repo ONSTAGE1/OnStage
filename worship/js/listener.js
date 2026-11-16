@@ -6,7 +6,12 @@
  * Emits:
  *   onTranscript({final, interim})
  *   onDetect({ref, kind: reference|context|quote|nav, confidence, heard})
- *   onStatus(text, level)
+ *   onStatus(text, level)   level: ok | warn | error | idle
+ *
+ * Robustness: the microphone is opened first (clear permission errors and a
+ * live level meter), every speech-service error is translated into plain
+ * English with a fix, recognition is restarted automatically when the
+ * browser stops it, and a watchdog stops endless silent restart loops.
  */
 (function (root) {
   var Ref = root.OnStageSpeechRef;
@@ -22,70 +27,271 @@
       getContext: null     // () => {book, chapter, verse}
     }, opts || {});
     this.running = false;
-    this.recent = {};      // refKey -> time last fired
-    this.fired = {};       // resultIndex -> {refKey:1}
+    this.recent = {};
+    this.fired = {};
     this.wordBuffer = "";
     this.finalLog = "";
+    this.level = 0;
+    this.lastResultAt = 0;
     this.onTranscript = this.onDetect = this.onStatus = function () {};
   }
 
   Listener.supported = !!SR;
 
+  /* Look for known reasons speech recognition will not work here. */
+  Listener.checkEnvironment = function () {
+    var ua = navigator.userAgent || "";
+    var problems = [];
+    var browser = /Edg\//.test(ua) ? "Microsoft Edge" : /OPR\/|Opera/.test(ua) ? "Opera" : /Vivaldi/.test(ua) ? "Vivaldi" :
+      /Firefox\//.test(ua) ? "Firefox" : /SamsungBrowser/.test(ua) ? "Samsung Internet" : /Electron/.test(ua) ? "Electron" :
+      navigator.brave ? "Brave" : /Chrome\//.test(ua) ? "Google Chrome" : /Safari\//.test(ua) ? "Safari" : "this browser";
+    var good = browser === "Google Chrome" || browser === "Microsoft Edge";
+    if (!SR) problems.push({ msg: browser + " has no speech recognition.", fix: "Open OnStage Worship in Google Chrome or Microsoft Edge." });
+    else if (!good && browser !== "Safari") problems.push({ msg: browser + " shows the speech feature but does not include the speech service, so nothing is recognised.", fix: "Use Google Chrome or Microsoft Edge." });
+    else if (browser === "Safari") problems.push({ msg: "Safari only recognises speech when Siri is turned on, and it often stops after a short time.", fix: "Google Chrome works best. In Safari, turn on Siri in System Settings." });
+    if (location.protocol === "file:") problems.push({ msg: "The app was opened directly from a file, which blocks the microphone.", fix: "Start it with “Start OnStage Worship.bat” (Windows) or the Mac .command file instead of opening index.html." });
+    else if (root.isSecureContext === false) problems.push({ msg: "The app is not on a secure address (https or localhost), so the browser blocks the microphone.", fix: "Use the start file, or open it from an https:// address." });
+    if (navigator.onLine === false) problems.push({ msg: "This computer is offline.", fix: "Speech recognition needs internet. Connect to Wi-Fi or Ethernet." });
+    return { browser: browser, good: good && !!SR, problems: problems };
+  };
+
+  /* Open the microphone (asks permission) and start a level meter. */
+  Listener.prototype.openMic = function () {
+    var self = this;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return Promise.reject(friendlyMicError({ name: "NotSupported" }));
+    }
+    if (this.stream) return Promise.resolve(this.stream);
+    return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true } })
+      .then(function (stream) {
+        self.stream = stream;
+        try {
+          var AC = root.AudioContext || root.webkitAudioContext;
+          var ctx = self.audioCtx = new AC();
+          var src = ctx.createMediaStreamSource(stream);
+          var an = ctx.createAnalyser(); an.fftSize = 1024;
+          src.connect(an);
+          var buf = new Uint8Array(an.fftSize);
+          var tick = function () {
+            if (!self.stream) return;
+            an.getByteTimeDomainData(buf);
+            var sum = 0;
+            for (var i = 0; i < buf.length; i++) { var v = (buf[i] - 128) / 128; sum += v * v; }
+            var rms = Math.sqrt(sum / buf.length);
+            self.level = Math.min(1, rms * 4);
+            if (self.level > 0.08) self.lastSoundAt = Date.now();
+            self.raf = requestAnimationFrame(tick);
+          };
+          tick();
+        } catch (e) { /* meter is optional */ }
+        var track = stream.getAudioTracks()[0];
+        self.micName = track ? track.label : "";
+        return stream;
+      })
+      .catch(function (e) { throw friendlyMicError(e); });
+  };
+
+  Listener.prototype.closeMic = function () {
+    if (this.raf) cancelAnimationFrame(this.raf);
+    if (this.stream) this.stream.getTracks().forEach(function (t) { t.stop(); });
+    if (this.audioCtx) try { this.audioCtx.close(); } catch (e) {}
+    this.stream = null; this.audioCtx = null; this.level = 0;
+  };
+
+  function friendlyMicError(e) {
+    var n = e && e.name;
+    if (n === "NotAllowedError" || n === "SecurityError" || n === "PermissionDeniedError")
+      return "Microphone access is blocked. Click the padlock / settings icon at the left of the address bar (or in the app window's ⋯ menu → Site permissions), set Microphone to “Allow”, then press Start listening again. On Windows also check Settings → Privacy & security → Microphone → “Let desktop apps access your microphone”.";
+    if (n === "NotFoundError" || n === "DevicesNotFoundError")
+      return "No microphone was found. Plug in a microphone or an audio feed from the sound desk, then try again. On Windows, check Settings → System → Sound → Input.";
+    if (n === "NotReadableError" || n === "TrackStartError")
+      return "The microphone is being used by another program (e.g. Zoom, Teams or OBS) or Windows could not start it. Close the other program or choose another input in Windows Sound settings, then try again.";
+    if (n === "NotSupported")
+      return "This browser can't use the microphone here. Open OnStage Worship with the start file in Google Chrome or Microsoft Edge.";
+    return "Couldn't open the microphone (" + (n || e) + ").";
+  }
+
   Listener.prototype.start = function () {
-    if (!SR) { this.onStatus("Speech recognition is not available in this browser. Use Google Chrome or Microsoft Edge.", "error"); return false; }
-    if (this.running) return true;
+    var self = this;
+    if (!SR) {
+      this.onStatus("Speech recognition isn't available in this browser. Open OnStage Worship in Google Chrome or Microsoft Edge.", "error");
+      return Promise.resolve(false);
+    }
+    if (this.running) return Promise.resolve(true);
+    this.running = true;
+    this.onStatus("Opening the microphone… (click “Allow” if the browser asks)", "warn");
+    return this.openMic().then(function () {
+      if (!self.running) { self.closeMic(); return false; }
+      self.netErrors = 0; self.restarts = []; self.lastResultAt = Date.now(); self.everHeard = false;
+      self.startRecognition();
+      self.watch = setInterval(function () { self.watchdog(); }, 4000);
+      return true;
+    }).catch(function (msg) {
+      self.running = false;
+      self.onStatus(String(msg), "error");
+      return false;
+    });
+  };
+
+  Listener.prototype.startRecognition = function () {
     var self = this;
     var rec = this.rec = new SR();
     rec.lang = this.opts.lang;
     rec.continuous = true;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
-    this.running = true;
     this.fired = {};
     this.session = (this.session || 0) + 1;
+    var thisSession = this.session;
 
-    rec.onstart = function () { self.onStatus("Listening…", "ok"); };
+    var responded = false;
+    rec.onstart = function () {
+      responded = true;
+      self.serviceOk = true;
+      self.onStatus("Listening" + (self.micName ? " on “" + self.micName + "”" : "") + "…", "ok");
+    };
+    // Some Chromium-based browsers expose the API but never answer at all.
+    setTimeout(function () {
+      if (responded || !self.running || thisSession !== self.session) return;
+      if (self.serviceOk) { try { rec.abort(); } catch (e) {} self.startRecognition(); return; }
+      self.fail("The speech service didn't respond. This browser doesn't provide speech recognition (Brave, Opera, Vivaldi, Chromium and some company-managed browsers don't). Open OnStage Worship in Google Chrome or Microsoft Edge, and check the internet connection.");
+    }, 8000);
+    rec.onaudiostart = function () { self.audioStarted = true; };
     rec.onerror = function (e) {
-      if (e.error === "no-speech" || e.error === "aborted") return;
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        self.running = false;
-        self.onStatus("Microphone permission was denied. Allow microphone access for this page (and open it via http://localhost or https).", "error");
-      } else self.onStatus("Speech error: " + e.error + " — retrying", "warn");
+      responded = true;
+      var err = e.error;
+      if (err === "no-speech" || err === "aborted") return;
+      if (err === "network") {
+        self.netErrors++;
+        if (self.netErrors >= 3) return self.fail("Can't reach the speech service. Check the internet connection. Brave, Opera, Vivaldi and some other browsers don't include speech recognition — use Google Chrome or Microsoft Edge.");
+        self.onStatus("Speech service connection problem — retrying (" + self.netErrors + "/3)…", "warn");
+        return;
+      }
+      if (err === "not-allowed" || err === "service-not-allowed")
+        return self.fail("The browser blocked speech recognition. Allow the microphone for this page (padlock icon in the address bar). If it is already allowed, this browser doesn't provide the speech service — use Google Chrome or Microsoft Edge.");
+      if (err === "audio-capture")
+        return self.fail("No working microphone. Check the microphone is plugged in and selected as the default input in your computer's sound settings.");
+      if (err === "language-not-supported" || err === "bad-grammar")
+        return self.fail("This language isn't supported by the speech service. Choose “English (US)” under Listening options.");
+      self.onStatus("Speech error: " + err + " — retrying", "warn");
     };
     rec.onend = function () {
-      // Browsers stop continuous recognition periodically; keep it alive.
-      if (self.running) {
-        self.session++;
-        self.fired = {};
-        setTimeout(function () { if (self.running) try { rec.start(); } catch (err) {} }, 250);
-      } else self.onStatus("Stopped", "idle");
+      if (!self.running || thisSession !== self.session) return;
+      // Browsers stop continuous recognition every so often — restart it.
+      var now = Date.now();
+      self.restarts = (self.restarts || []).filter(function (t) { return now - t < 30000; });
+      self.restarts.push(now);
+      if (self.restarts.length > 10 && now - self.lastResultAt > 30000) {
+        return self.fail("The speech service keeps stopping without recognising anything. Check the internet connection and that you are using Google Chrome or Microsoft Edge, then press Start listening again.");
+      }
+      setTimeout(function () {
+        if (self.running && thisSession === self.session) {
+          try { self.startRecognition(); } catch (err) { /* will retry on next end */ }
+        }
+      }, self.restarts.length > 3 ? 1000 : 200);
     };
     rec.onresult = function (e) {
+      responded = true;
+      self.lastResultAt = Date.now();
+      self.everHeard = true;
+      self.netErrors = 0;
       var interim = "";
       for (var i = e.resultIndex; i < e.results.length; i++) {
         var res = e.results[i], txt = res[0].transcript;
         if (res.isFinal) {
           self.finalLog = (self.finalLog + " " + txt).slice(-4000);
-          self.process(txt, true, self.session + ":" + i);
+          self.process(txt, true, thisSession + ":" + i);
         } else {
           interim += txt;
-          if (self.opts.interim) self.process(txt, false, self.session + ":" + i);
+          if (self.opts.interim) self.process(txt, false, thisSession + ":" + i);
         }
       }
       self.onTranscript({ final: self.finalLog, interim: interim });
     };
-    try { rec.start(); } catch (err) { this.onStatus(String(err), "error"); this.running = false; return false; }
-    return true;
+    try { rec.start(); }
+    catch (err) {
+      if (err && err.name === "InvalidStateError") return; // already started
+      self.fail("Couldn't start speech recognition: " + (err && err.message || err));
+    }
+  };
+
+  /* Warn when sound is arriving but no words come back. */
+  Listener.prototype.watchdog = function () {
+    if (!this.running) return;
+    var now = Date.now();
+    var silentFor = now - this.lastResultAt;
+    var hearingSound = this.lastSoundAt && now - this.lastSoundAt < 4000;
+    if (silentFor > 15000 && hearingSound) {
+      this.onStatus("The microphone hears sound but no words are coming back. Check the internet connection, that the language under Listening options matches the speaker, and that you're using Chrome or Edge.", "warn");
+    } else if (silentFor > 20000 && !hearingSound) {
+      this.onStatus("Listening, but the microphone is silent. Speak near it, raise its volume, or pick the right input in your computer's sound settings.", "warn");
+    }
+  };
+
+  Listener.prototype.fail = function (msg) {
+    this.stop();
+    this.onStatus(msg, "error");
   };
 
   Listener.prototype.stop = function () {
     this.running = false;
-    if (this.rec) try { this.rec.stop(); } catch (e) {}
+    this.session = (this.session || 0) + 1;
+    clearInterval(this.watch);
+    if (this.rec) try { this.rec.abort(); } catch (e) {}
+    this.closeMic();
+    this.onStatus("Stopped", "idle");
   };
 
   Listener.prototype.setLang = function (lang) {
     this.opts.lang = lang;
-    if (this.running) { this.stop(); var s = this; setTimeout(function () { s.start(); }, 400); }
+    if (this.running && this.rec) { try { this.rec.abort(); } catch (e) {} } // onend restarts with new language
+  };
+
+  /* Quick self-test: microphone + speech service. Resolves to a list of checks. */
+  Listener.prototype.diagnose = function () {
+    var self = this;
+    var env = Listener.checkEnvironment();
+    var checks = [{ name: "Browser", ok: env.good, detail: env.browser }];
+    env.problems.forEach(function (p) { checks.push({ name: "Problem", ok: false, detail: p.msg, fix: p.fix }); });
+    var wasRunning = this.running;
+    var micPromise = wasRunning ? Promise.resolve(this.stream) : this.openMic();
+    return micPromise.then(function () {
+      checks.push({ name: "Microphone", ok: true, detail: "Allowed" + (self.micName ? " — using “" + self.micName + "”" : "") });
+      return new Promise(function (resolve) {
+        var peak = 0, t0 = Date.now();
+        var iv = setInterval(function () {
+          peak = Math.max(peak, self.level);
+          if (Date.now() - t0 > 2500) { clearInterval(iv); resolve(peak); }
+        }, 50);
+      });
+    }).then(function (peak) {
+      checks.push(peak > 0.05
+        ? { name: "Sound level", ok: true, detail: "Sound is reaching the microphone" }
+        : { name: "Sound level", ok: false, detail: "No sound detected during the test", fix: "Speak while the test runs, raise the microphone volume, or choose the right input in your computer's sound settings." });
+      if (!SR || wasRunning) return null;
+      return new Promise(function (resolve) {
+        var rec = new SR(), done = false;
+        rec.lang = self.opts.lang; rec.interimResults = true; rec.continuous = false;
+        var finish = function (r) { if (done) return; done = true; try { rec.abort(); } catch (e) {} resolve(r); };
+        rec.onresult = function (e) { finish({ ok: true, detail: "Heard: “" + e.results[0][0].transcript + "”" }); };
+        rec.onerror = function (e) {
+          finish(e.error === "no-speech"
+            ? { ok: true, warn: true, detail: "Service reachable, but no words were heard. Say something during the test." }
+            : { ok: false, detail: "Error: " + e.error, fix: e.error === "network" ? "Check the internet. Brave/Opera/Vivaldi don't include the speech service — use Chrome or Edge." : "Allow the microphone for this page, and use Chrome or Edge." });
+        };
+        rec.onend = function () { finish({ ok: true, warn: true, detail: "Service started, but no words were heard. Say something during the test." }); };
+        setTimeout(function () { finish({ ok: false, detail: "No response from the speech service", fix: "Check the internet connection and use Google Chrome or Microsoft Edge." }); }, 9000);
+        try { rec.start(); } catch (e) { finish({ ok: false, detail: String(e) }); }
+      });
+    }).then(function (svc) {
+      if (svc) checks.push(Object.assign({ name: "Speech service" }, svc));
+      if (!wasRunning) self.closeMic();
+      return checks;
+    }).catch(function (msg) {
+      checks.push({ name: "Microphone", ok: false, detail: String(msg) });
+      if (!wasRunning) self.closeMic();
+      return checks;
+    });
   };
 
   /* Feed text (from the mic or typed into the simulator). */

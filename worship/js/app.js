@@ -688,12 +688,50 @@
   function toggleMic() {
     if (listener.running) { listener.stop(); setMicUI(false); return; }
     syncListenerOpts();
+    var env = Listener.checkEnvironment();
     if (!Listener.supported) {
-      listener.onStatus("Speech recognition isn't available in this browser. Open OnStage Worship in Google Chrome or Microsoft Edge. You can still test with the box below.", "error");
+      listener.onStatus(env.problems[0].msg + " " + env.problems[0].fix + " You can still test with the box below.", "error");
       return;
     }
-    if (location.protocol === "file:") toast("Tip: serve this folder over http://localhost for reliable microphone access");
-    if (listener.start()) { setMicUI(true); bible().buildIndex(); }
+    if (location.protocol === "file:") {
+      listener.onStatus(env.problems.filter(function (p) { return /file/.test(p.msg); })[0].msg + " " + "Close this window and start OnStage Worship with “Start OnStage Worship.bat” (Windows) or the Mac .command file.", "error");
+      return;
+    }
+    setMicUI(true);
+    listener.start().then(function (ok) {
+      if (!ok) { setMicUI(false); return; }
+      if (!env.good && env.problems.length) toast(env.problems[0].fix);
+      bible().buildIndex();
+      meterLoop();
+    });
+  }
+  function meterLoop() {
+    var bar = $("#micLevel");
+    (function f() {
+      bar.style.width = Math.round((listener.level || 0) * 100) + "%";
+      if (listener.stream) requestAnimationFrame(f); else bar.style.width = "0";
+    })();
+  }
+  function micCheck() {
+    modal("Microphone check", '<p class="muted">Say a few words — for example “John 3 16” — while the test runs (about 10 seconds).</p><ul class="checks" id="checks"><li><span class="st warn">…</span><div><b>Testing…</b></div></li></ul>',
+      [{ label: "Close" }]);
+    if (location.protocol === "file:") {
+      $("#checks").innerHTML = checkRow({ name: "How the app was opened", ok: false, detail: "Opened directly from a file, which blocks the microphone.", fix: "Close this window and double-click “Start OnStage Worship.bat” (Windows) or the Mac .command file instead." });
+      return;
+    }
+    var poll = setInterval(function () { if (listener.stream) $("#micLevel").style.width = Math.round(listener.level * 100) + "%"; }, 60);
+    listener.diagnose().then(function (checks) {
+      clearInterval(poll); $("#micLevel").style.width = "0";
+      var bad = checks.filter(function (c) { return !c.ok; }).length;
+      var el = $("#checks"); if (!el) return;
+      el.innerHTML = checks.map(checkRow).join("") +
+        (bad ? "" : '<li><span class="st ok">✓</span><div><b>All good</b>Press <b>Start listening</b> and the AI will follow the sermon.</div></li>');
+    });
+  }
+  function checkRow(c) {
+    var cls = !c.ok ? "bad" : c.warn ? "warn" : "ok";
+    return '<li><span class="st ' + cls + '">' + (!c.ok ? "✕" : c.warn ? "!" : "✓") + "</span><div><b>" + esc(c.name) + "</b>" + esc(c.detail || "") +
+      (c.fix ? '<div class="fix">How to fix: ' + esc(c.fix) + "</div>" : "") + "</div></li>";
   }
   function renderAiOpts() {
     $$("#aiMode button").forEach(function (b) { b.classList.toggle("on", b.dataset.mode === settings.aiMode); });
@@ -782,6 +820,7 @@
     videoPause: function () { ui.videoCmd = { id: Store.uid(), action: "pause" }; pushOutput(); },
     videoRestart: function () { ui.videoCmd = { id: Store.uid(), action: "restart" }; pushOutput(); },
     toggleMic: toggleMic,
+    micCheck: micCheck,
     clearDetections: function () { detections = []; renderDetections(); },
     closeModal: closeModal,
 
@@ -1054,7 +1093,12 @@
     };
 
     renderSchedule(); renderSongs(); renderPres(); renderPreview(); renderLive(); renderDetections();
-    if (!Listener.supported) $("#aiStatus").textContent = "Live speech needs Google Chrome or Microsoft Edge. You can still try the detector with the test box below.";
+    var env0 = Listener.checkEnvironment();
+    if (env0.problems.length) {
+      var st = $("#aiStatus");
+      st.className = "ai-status warn";
+      st.textContent = "⚠ " + env0.problems[0].msg + " " + env0.problems[0].fix;
+    }
 
     // Async: imported Bibles, media
     Store.all("bibles").then(function (rows) { rows.forEach(function (b) { BibleReg.add(b); }); fillVersions(); }).catch(function () {});
