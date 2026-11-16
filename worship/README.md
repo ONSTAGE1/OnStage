@@ -4,7 +4,15 @@ Church presentation software for songs, scripture, media and announcements, with
 
 It runs in the browser and needs no install or build step.
 
-## Quick start
+## Install as a desktop program
+
+Download the `OnStage-Worship.zip` release (or this `worship/` folder) and follow **READ ME FIRST.txt**:
+
+- **Windows:** double-click `Start OnStage Worship.bat`. It starts a tiny built-in local server (PowerShell, nothing to install), opens the app in its own Edge/Chrome window and adds a desktop shortcut.
+- **Mac:** right-click `Start OnStage Worship (Mac).command` → Open.
+- **Any computer:** when the app is opened from a web address, Chrome/Edge shows an **Install app** button. The app then works offline, except for speech recognition.
+
+## Quick start (developers)
 
 ```bash
 cd OnStage            # repository root

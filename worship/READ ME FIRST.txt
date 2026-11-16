@@ -1,0 +1,58 @@
+OnStage Worship
+===============
+
+Church presentation software with an AI assistant that listens to the
+preacher and shows Bible verses on screen automatically.
+
+
+INSTALL ON WINDOWS (10 or 11)
+-----------------------------
+1. Right-click the downloaded zip file and choose "Extract All...".
+   Put the folder somewhere permanent, such as Documents.
+2. Open the folder and double-click "Start OnStage Worship.bat".
+   - If Windows says "Windows protected your PC", click "More info" and
+     then "Run anyway". This happens because the program is new and not
+     signed. It only needs doing once.
+3. OnStage Worship opens in its own window. A shortcut called
+   "OnStage Worship" is added to your Desktop. Use that next time.
+4. A small minimised window called "OnStage Worship" also opens.
+   Keep it open while you use the app. Closing it stops the app.
+
+Microsoft Edge (already on every Windows PC) or Google Chrome is used to
+run the app, so nothing else needs installing.
+
+
+INSTALL ON MAC
+--------------
+1. Double-click the zip file to unpack it.
+2. Right-click "Start OnStage Worship (Mac).command" and choose "Open"
+   (the first time only). Then click "Open" again to confirm.
+3. The app opens in a Google Chrome window. Install Chrome first if you
+   don't have it: https://www.google.com/chrome/
+
+
+USING IT ON SUNDAY
+------------------
+1. Connect the projector or TV as a second screen.
+2. Click "Output" at the top. Drag the new window onto the projector,
+   then double-click it to make it full screen.
+3. Build your service in the Schedule using the tabs at the bottom
+   (Scripture, Songs, Media, Presentations).
+4. Click "Start listening" in the AI Verse Assistant panel and point the
+   microphone at the preacher, or plug in an audio feed from the sound desk.
+   When a verse is mentioned, it goes on screen by itself.
+   Choose "Auto preview" or "Suggest only" if you prefer to approve each
+   verse before it shows.
+5. Press the "?" button in the app for all keyboard shortcuts.
+
+
+GOOD TO KNOW
+------------
+- The AI microphone feature needs an internet connection. The browser's
+  speech service turns speech into text. Everything else works offline.
+- Your songs, slides and settings are saved on this computer automatically.
+  Use Settings > "Export everything" to make a backup.
+- The King James Version is built in. If your church holds a licence for
+  another translation, import it from Settings.
+- The two sample songs are placeholders. Add your own songs and use them
+  under your CCLI licence.
