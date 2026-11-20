@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OnStage Output</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Playfair+Display:wght@600;700&family=Merriweather:wght@400;700&family=Montserrat:wght@500;700;800&family=Lora:wght@500;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/fonts.css">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="css/render.css">
 <style>
@@ -66,6 +66,12 @@
     else c.textContent = "";
   }, 500);
 
+  // Desktop app: state arrives from the console through the app, not window.opener.
+  var D = window.onstageDesktop;
+  if (D) {
+    D.onState(apply);
+    D.getState().then(function (st) { if (st) apply(st); });
+  }
   window.addEventListener("message", function (e) {
     if (e.data && e.data.type === "onstage-state") apply(e.data.state);
   });
@@ -83,6 +89,7 @@
   document.addEventListener("dblclick", fs);
   document.addEventListener("keydown", function (e) {
     if (e.key === "f" || e.key === "F") fs();
+    else if (D) D.sendKey(e.key);
     else if (window.opener) try { window.opener.postMessage({ type: "onstage-key", key: e.key }, "*"); } catch (err) {}
   });
   setTimeout(function () { document.getElementById("hint").style.opacity = 0; }, 4000);

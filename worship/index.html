@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OnStage Worship — Presentation Console</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:wght@600;700&family=Merriweather:wght@400;700&family=Montserrat:wght@500;700;800&family=Lora:wght@500;700&family=Oswald:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/fonts.css">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <meta name="theme-color" content="#0b0c0e">
@@ -24,6 +22,7 @@
   <div class="group">
     <button class="accent-outline" data-act="openOutput" title="Open the projector output window">▣ Output</button>
     <button data-act="openStage" title="Open the stage / confidence monitor">Stage display</button>
+    <button class="desk-only" data-act="screens" title="Choose which screen shows the output and the stage display">Screens</button>
   </div>
   <div class="spacer"></div>
   <div class="group live-ctl">
@@ -273,7 +272,7 @@
 <script src="js/app.js"></script>
 <script>
   // Desktop app install + offline support
-  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(function () {});
+  if (!window.onstageDesktop && "serviceWorker" in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(function () {});
   (function () {
     var deferred = null, btn = document.getElementById("btnInstall");
     window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; btn.hidden = false; });

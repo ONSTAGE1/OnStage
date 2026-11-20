@@ -1,0 +1,28 @@
+{
+  "name": "onstage-worship",
+  "productName": "OnStage Worship",
+  "version": "1.0.0",
+  "description": "Church presentation software with an offline AI assistant that puts Bible verses on screen as they are mentioned.",
+  "main": "main.js",
+  "author": "OnStage",
+  "license": "UNLICENSED",
+  "private": true,
+  "homepage": "https://github.com/ONSTAGE1/OnStage",
+  "scripts": {
+    "prepare-web": "node scripts/prepare-web.js",
+    "fetch-models": "node scripts/fetch-models.js",
+    "start": "npm run prepare-web && electron .",
+    "selftest": "npm run prepare-web && electron . --selftest",
+    "dist:win": "npm run prepare-web && npm run fetch-models && electron-builder --win --x64 --publish never",
+    "dist:mac": "npm run prepare-web && npm run fetch-models && electron-builder --mac --publish never",
+    "dist:linux": "npm run prepare-web && npm run fetch-models && electron-builder --linux --x64 --publish never",
+    "dist:win-on-linux": "npm run prepare-web && npm run fetch-models && node scripts/build-win-on-linux.js"
+  },
+  "dependencies": {
+    "sherpa-onnx-node": "2.0.2"
+  },
+  "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0"
+  }
+}

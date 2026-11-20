@@ -16,6 +16,8 @@
 (function (root) {
   var Ref = root.OnStageSpeechRef;
   var SR = root.SpeechRecognition || root.webkitSpeechRecognition;
+  // In the desktop app speech is recognised offline by the built-in engine.
+  var DESKTOP = root.onstageDesktop && root.onstageDesktop.speech ? root.onstageDesktop : null;
 
   function Listener(opts) {
     this.opts = Object.assign({
@@ -36,10 +38,16 @@
     this.onTranscript = this.onDetect = this.onStatus = function () {};
   }
 
-  Listener.supported = !!SR;
+  Listener.engine = DESKTOP ? "offline" : "web";
+  Listener.supported = DESKTOP ? true : !!SR;
 
   /* Look for known reasons speech recognition will not work here. */
   Listener.checkEnvironment = function () {
+    if (DESKTOP) {
+      var p = [];
+      if (!navigator.mediaDevices || !root.AudioWorkletNode) p.push({ msg: "This computer's audio system could not be opened.", fix: "Restart OnStage Worship. If it keeps happening, update Windows/macOS." });
+      return { browser: "OnStage Worship app (offline speech engine)", good: true, problems: p, offline: true };
+    }
     var ua = navigator.userAgent || "";
     var problems = [];
     var browser = /Edg\//.test(ua) ? "Microsoft Edge" : /OPR\/|Opera/.test(ua) ? "Opera" : /Vivaldi/.test(ua) ? "Vivaldi" :
@@ -55,8 +63,9 @@
   };
 
   /* Open the microphone (asks permission) and start a level meter. */
-  Listener.prototype.openMic = function () {
+  Listener.prototype.openMic = function (opts) {
     var self = this;
+    opts = opts || {};
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       return Promise.reject(friendlyMicError({ name: "NotSupported" }));
     }
@@ -66,8 +75,10 @@
         self.stream = stream;
         try {
           var AC = root.AudioContext || root.webkitAudioContext;
-          var ctx = self.audioCtx = new AC();
-          var src = ctx.createMediaStreamSource(stream);
+          var ctx;
+          if (opts.sampleRate) { try { ctx = new AC({ sampleRate: opts.sampleRate }); } catch (e) { ctx = null; } }
+          ctx = self.audioCtx = ctx || new AC();
+          var src = self.micSource = ctx.createMediaStreamSource(stream);
           var an = ctx.createAnalyser(); an.fftSize = 1024;
           src.connect(an);
           var buf = new Uint8Array(an.fftSize);
@@ -92,6 +103,8 @@
 
   Listener.prototype.closeMic = function () {
     if (this.raf) cancelAnimationFrame(this.raf);
+    if (this.captureNode) { try { this.captureNode.port.onmessage = null; this.captureNode.disconnect(); } catch (e) {} this.captureNode = null; }
+    this.micSource = null;
     if (this.stream) this.stream.getTracks().forEach(function (t) { t.stop(); });
     if (this.audioCtx) try { this.audioCtx.close(); } catch (e) {}
     this.stream = null; this.audioCtx = null; this.level = 0;
@@ -99,6 +112,8 @@
 
   function friendlyMicError(e) {
     var n = e && e.name;
+    if ((n === "NotAllowedError" || n === "SecurityError" || n === "PermissionDeniedError") && DESKTOP)
+      return "Microphone access is turned off for OnStage Worship. Windows: Settings → Privacy & security → Microphone → turn on “Let desktop apps access your microphone”. Mac: System Settings → Privacy & Security → Microphone → turn on OnStage Worship. Then press Start listening again.";
     if (n === "NotAllowedError" || n === "SecurityError" || n === "PermissionDeniedError")
       return "Microphone access is blocked. Click the padlock / settings icon at the left of the address bar (or in the app window's ⋯ menu → Site permissions), set Microphone to “Allow”, then press Start listening again. On Windows also check Settings → Privacy & security → Microphone → “Let desktop apps access your microphone”.";
     if (n === "NotFoundError" || n === "DevicesNotFoundError")
@@ -112,6 +127,7 @@
 
   Listener.prototype.start = function () {
     var self = this;
+    if (DESKTOP) return this.startOffline();
     if (!SR) {
       this.onStatus("Speech recognition isn't available in this browser. Open OnStage Worship in Google Chrome or Microsoft Edge.", "error");
       return Promise.resolve(false);
@@ -220,7 +236,9 @@
     var now = Date.now();
     var silentFor = now - this.lastResultAt;
     var hearingSound = this.lastSoundAt && now - this.lastSoundAt < 4000;
-    if (silentFor > 15000 && hearingSound) {
+    if (silentFor > 15000 && hearingSound && DESKTOP) {
+      this.onStatus("The microphone hears sound but no clear words yet. Speak clearly near the microphone, or plug in a feed from the sound desk for the best results.", "warn");
+    } else if (silentFor > 15000 && hearingSound) {
       this.onStatus("The microphone hears sound but no words are coming back. Check the internet connection, that the language under Listening options matches the speaker, and that you're using Chrome or Edge.", "warn");
     } else if (silentFor > 20000 && !hearingSound) {
       this.onStatus("Listening, but the microphone is silent. Speak near it, raise its volume, or pick the right input in your computer's sound settings.", "warn");
@@ -233,9 +251,14 @@
   };
 
   Listener.prototype.stop = function () {
+    var wasRunning = this.running;
     this.running = false;
     this.session = (this.session || 0) + 1;
     clearInterval(this.watch);
+    if (DESKTOP) {
+      if (this.unsubEngine) { this.unsubEngine(); this.unsubEngine = null; }
+      if (wasRunning) DESKTOP.speech.stop();
+    }
     if (this.rec) try { this.rec.abort(); } catch (e) {}
     this.closeMic();
     this.onStatus("Stopped", "idle");
@@ -243,12 +266,14 @@
 
   Listener.prototype.setLang = function (lang) {
     this.opts.lang = lang;
+    if (DESKTOP) return; // the offline engine is English-only
     if (this.running && this.rec) { try { this.rec.abort(); } catch (e) {} } // onend restarts with new language
   };
 
   /* Quick self-test: microphone + speech service. Resolves to a list of checks. */
   Listener.prototype.diagnose = function () {
     var self = this;
+    if (DESKTOP) return this.diagnoseOffline();
     var env = Listener.checkEnvironment();
     var checks = [{ name: "Browser", ok: env.good, detail: env.browser }];
     env.problems.forEach(function (p) { checks.push({ name: "Problem", ok: false, detail: p.msg, fix: p.fix }); });
@@ -293,14 +318,136 @@
     });
   };
 
+  /* ---------------- Offline engine (desktop app) ---------------- */
+  // Audio is captured at 16 kHz in an AudioWorklet and streamed to the
+  // built-in Whisper engine; results come back as interim/final text.
+  var WORKLET = "class P extends AudioWorkletProcessor{constructor(o){super();this.r=o.processorOptions.ratio;this.sum=0;this.cnt=0;this.pos=0;this.buf=new Float32Array(1600);this.n=0;}" +
+    "process(inputs){var c=inputs[0]&&inputs[0][0];if(!c)return true;for(var i=0;i<c.length;i++){this.sum+=c[i];this.cnt++;this.pos+=1;if(this.pos>=this.r){this.pos-=this.r;this.out(this.sum/this.cnt);this.sum=0;this.cnt=0;}}return true;}" +
+    "out(v){this.buf[this.n++]=v;if(this.n===1600){this.port.postMessage(this.buf,[this.buf.buffer]);this.buf=new Float32Array(1600);this.n=0;}}}registerProcessor('onstage-pcm16k',P);";
+
+  Listener.prototype.startCapture = function () {
+    var self = this, ctx = this.audioCtx;
+    if (!ctx || !this.micSource) return Promise.reject("The microphone could not be opened.");
+    var url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
+    return ctx.audioWorklet.addModule(url).then(function () {
+      var node = new AudioWorkletNode(ctx, "onstage-pcm16k", { numberOfInputs: 1, numberOfOutputs: 1, processorOptions: { ratio: ctx.sampleRate / 16000 } });
+      var mute = ctx.createGain(); mute.gain.value = 0;
+      node.port.onmessage = function (e) { if (self.running) DESKTOP.speech.audio(e.data); };
+      self.micSource.connect(node); node.connect(mute); mute.connect(ctx.destination);
+      self.captureNode = node;
+      if (ctx.state === "suspended") ctx.resume();
+    });
+  };
+
+  Listener.prototype.startOffline = function () {
+    var self = this;
+    if (this.running) return Promise.resolve(true);
+    this.running = true;
+    this.onStatus("Starting the offline speech engine…", "warn");
+    return DESKTOP.speech.start().then(function (r) {
+      if (!r || !r.ok) throw (r && r.error) || "The speech engine could not start.";
+      if (!self.running) return false;
+      self.engineInfo = r;
+      return self.openMic({ sampleRate: 16000 }).then(function () { return self.startCapture(); }).then(function () {
+        if (!self.running) { self.closeMic(); return false; }
+        self.fired = {}; self.session = (self.session || 0) + 1;
+        self.lastResultAt = Date.now(); self.everHeard = false; self.prevFinal = "";
+        self.unsubEngine = DESKTOP.speech.onEvent(function (m) { self.onEngineEvent(m); });
+        DESKTOP.speech.options({ interim: !!self.opts.interim });
+        self.watch = setInterval(function () { self.watchdog(); }, 4000);
+        self.onStatus("Listening (offline)" + (self.micName ? " on “" + self.micName + "”" : "") + "…", "ok");
+        return true;
+      });
+    }).catch(function (err) {
+      self.running = false;
+      self.closeMic();
+      self.onStatus(String((err && err.message) || err), "error");
+      return false;
+    });
+  };
+
+  Listener.prototype.onEngineEvent = function (m) {
+    if (!this.running || !m) return;
+    if (m.type === "result") {
+      var text = String(m.text || "").trim();
+      this.lastResultAt = Date.now();
+      if (m.final) {
+        if (text) {
+          this.everHeard = true;
+          this.finalLog = (this.finalLog + " " + text).slice(-4000);
+          // A reference can be split across two phrases ("turn to Romans chapter" | "eight verse twenty eight"),
+          // so the end of the previous phrase is included; repeats are filtered by the repeat guard.
+          var tail = (this.prevFinal || "").split(" ").slice(-6).join(" ");
+          this.process(text, true, "off:" + this.session + ":" + m.id, tail);
+          this.prevFinal = text;
+        }
+        this.onTranscript({ final: this.finalLog, interim: "" });
+      } else if (text) {
+        if (this.opts.interim) this.process(text, false, "off:" + this.session + ":" + m.id);
+        this.onTranscript({ final: this.finalLog, interim: text });
+      }
+    } else if (m.type === "exit") {
+      this.fail("The speech engine stopped unexpectedly. Press Start listening to restart it.");
+    } else if (m.type === "error") {
+      this.onStatus("Speech engine: " + m.message, "warn");
+    }
+  };
+
+  /* Mic check in the desktop app: microphone, sound level, and a short offline recognition test. */
+  Listener.prototype.diagnoseOffline = function () {
+    var self = this;
+    var checks = [{ name: "Speech engine", ok: true, detail: "Offline (built in) — no internet needed" }];
+    if (this.running) {
+      checks.push({ name: "Microphone", ok: true, detail: "In use" + (self.micName ? " — “" + self.micName + "”" : "") });
+      checks.push({ name: "Listening", ok: true, detail: "The AI is listening now. Say “John chapter 3 verse 16” to see it work." });
+      return Promise.resolve(checks);
+    }
+    var heard = [], unsub = null;
+    return DESKTOP.speech.start().then(function (r) {
+      if (!r || !r.ok) throw (r && r.error) || "The speech engine could not start.";
+      checks[0].detail = "Ready (" + (r.engine || "offline") + ", loaded in " + Math.round((r.loadMs || 0) / 100) / 10 + " s)";
+      return self.openMic({ sampleRate: 16000 });
+    }).then(function () {
+      checks.push({ name: "Microphone", ok: true, detail: "Allowed" + (self.micName ? " — using “" + self.micName + "”" : "") });
+      self.running = true; // let the capture stream audio for the test
+      return self.startCapture();
+    }).then(function () {
+      unsub = DESKTOP.speech.onEvent(function (m) { if (m.type === "result" && m.final && m.text) heard.push(m.text); });
+      return new Promise(function (resolve) {
+        var peak = 0, t0 = Date.now();
+        var iv = setInterval(function () {
+          peak = Math.max(peak, self.level);
+          if (Date.now() - t0 > 6000) { clearInterval(iv); DESKTOP.speech.stop(); setTimeout(function () { resolve(peak); }, 2500); }
+        }, 50);
+      });
+    }).then(function (peak) {
+      self.running = false;
+      if (unsub) unsub();
+      self.closeMic();
+      checks.push(peak > 0.05
+        ? { name: "Sound level", ok: true, detail: "Sound is reaching the microphone" }
+        : { name: "Sound level", ok: false, detail: "No sound detected during the test", fix: "Speak while the test runs, raise the microphone volume, or choose the right input in your computer's sound settings." });
+      checks.push(heard.length
+        ? { name: "Recognition", ok: true, detail: "Heard: “" + heard.join(" ") + "”" }
+        : { name: "Recognition", ok: true, warn: true, detail: "No words were recognised. Speak a sentence during the test (for example “John chapter 3 verse 16”)." });
+      return checks;
+    }).catch(function (msg) {
+      self.running = false;
+      if (unsub) unsub();
+      self.closeMic();
+      checks.push({ name: "Problem", ok: false, detail: String((msg && msg.message) || msg) });
+      return checks;
+    });
+  };
+
   /* Feed text (from the mic or typed into the simulator). */
-  Listener.prototype.process = function (text, isFinal, resultId) {
+  Listener.prototype.process = function (text, isFinal, resultId, prefix) {
     var bible = this.opts.getBible();
     if (!bible) return;
     resultId = resultId || ("manual:" + Date.now());
     var fired = this.fired[resultId] || (this.fired[resultId] = {});
     var ctx = this.opts.getContext ? this.opts.getContext() : null;
-    var hits = Ref.detect(text, bible, { context: ctx });
+    var hits = Ref.detect((prefix ? prefix + " " : "") + text, bible, { context: ctx });
     var self = this, any = false;
 
     hits.forEach(function (h) {

@@ -1,0 +1,40 @@
+OnStage Worship — third-party software and content
+===================================================
+
+OnStage Worship includes the following free software and content. Thank you
+to everyone who made them available.
+
+Speech recognition (runs offline on this computer)
+--------------------------------------------------
+* Whisper base.en speech recognition model — OpenAI, MIT License.
+  https://github.com/openai/whisper
+* sherpa-onnx (ONNX export of the model and the speech engine) — k2-fsa /
+  Next-gen Kaldi, Apache License 2.0. https://github.com/k2-fsa/sherpa-onnx
+* Silero VAD (voice activity detection) — silero-team, MIT License.
+  https://github.com/snakers4/silero-vad
+* ONNX Runtime — Microsoft, MIT License. https://github.com/microsoft/onnxruntime
+
+Application framework
+---------------------
+* Electron — MIT License (includes Chromium and Node.js; their licences are
+  listed in LICENSES.chromium.html next to the program).
+
+Bible texts (built in)
+----------------------
+* King James Version (1769) — public domain.
+* Berean Standard Bible (BSB) — dedicated to the public domain (CC0).
+* New Heart English Bible (NHEB) — public domain.
+* American Standard Version (1901) — public domain.
+* Bible in Basic English (BBE) — public domain.
+  Text files from github.com/thiagobodruk/bible and github.com/scrollmapper/bible_databases.
+
+Hymns (built in)
+----------------
+* 30 hymn texts published in 1930 or earlier (public domain), from the
+  public-domain entries of github.com/dsmithco/worship-chordpro.
+
+Fonts
+-----
+* DM Sans, DM Mono, Montserrat, Oswald, Merriweather, Lora, Playfair Display —
+  SIL Open Font License 1.1 (packaged from Fontsource). Full licence texts are
+  in fonts/FONTS-LICENSE.txt.

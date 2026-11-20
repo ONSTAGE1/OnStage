@@ -4,14 +4,24 @@ Church presentation software for songs, scripture, media and announcements, with
 
 It runs in the browser and needs no install or build step.
 
-## Install as a desktop program
+## Install as a desktop program (recommended)
 
-Download the `OnStage-Worship.zip` release (or this `worship/` folder) and follow **READ ME FIRST.txt**:
+OnStage Worship is a real installable app for Windows, macOS and Linux (see [`../desktop`](../desktop/README.md)):
 
-- **Windows:** double-click `Start OnStage Worship.bat`. It opens the app in its own Edge/Chrome window and adds a desktop shortcut.
-- **Mac:** right-click `index.html` → Open With → Google Chrome, or double-click `Start OnStage Worship (Mac).command`.
-- **Anything else:** opening `index.html` in Chrome or Edge works the same way. The microphone, saved data and the projector window all work from the file.
-- **Any computer:** when the app is opened from a web address, Chrome/Edge shows an **Install app** button. The app then works offline, except for speech recognition.
+- **Windows:** `OnStage-Worship-Setup-<version>.exe`. One-click, per-user install with no administrator password. It adds Desktop and Start-menu shortcuts.
+- **macOS:** `.dmg` for Apple Silicon or Intel.
+- **Linux:** `.AppImage` or `.deb`.
+
+The desktop app recognises speech **offline**, using a built-in Whisper model, with no internet or Chrome needed. It opens the output and stage display full screen on the screens you choose, keeps the display awake during the service, and bundles all fonts.
+
+### Browser version
+
+The `worship/` folder also runs on its own in Chrome or Edge:
+
+- **Windows:** double-click `Start OnStage Worship.bat`.
+- **Any computer:** open `index.html` in Chrome or Edge.
+
+In the browser, speech recognition uses the browser's online speech service.
 
 ## Quick start (developers)
 

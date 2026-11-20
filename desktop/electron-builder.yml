@@ -1,0 +1,84 @@
+# OnStage Worship — installer configuration (electron-builder)
+appId: com.onstage.worship
+productName: OnStage Worship
+copyright: Copyright © 2026 OnStage
+artifactName: "OnStage-Worship-${version}-${os}-${arch}.${ext}"
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - main.js
+  - preload.js
+  - speech-worker.js
+  - package.json
+  - THIRD-PARTY-NOTICES.txt
+  - web/**/*
+  - build/icon.png
+  - build/icon.ico
+
+# The offline speech engine is native code: keep it outside the app archive.
+asarUnpack:
+  - "node_modules/sherpa-onnx-*/**"
+
+# Speech models (~155 MB) and the self-test recording live next to the app.
+extraResources:
+  - from: resources/models
+    to: models
+  - from: resources/selftest.wav
+    to: selftest.wav
+
+npmRebuild: false
+# No auto-update server yet (installers are downloaded from GitHub Releases).
+publish: null
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  files:
+    - "!node_modules/sherpa-onnx-linux-*/**"
+    - "!node_modules/sherpa-onnx-darwin-*/**"
+
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: OnStage Worship
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  artifactName: "OnStage-Worship-Setup-${version}.${ext}"
+
+mac:
+  target:
+    - target: dmg
+  files:
+    - "!node_modules/sherpa-onnx-linux-*/**"
+    - "!node_modules/sherpa-onnx-win-*/**"
+  category: public.app-category.productivity
+  icon: build/icon.png
+  # No Apple developer certificate yet: sign ad-hoc so the app runs on Apple Silicon.
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  extendInfo:
+    NSMicrophoneUsageDescription: "OnStage Worship listens for Bible references during the sermon. The audio is processed on this Mac and never leaves it."
+
+dmg:
+  artifactName: "OnStage-Worship-${version}-mac-${arch}.${ext}"
+
+linux:
+  target:
+    - AppImage
+    - deb
+  files:
+    - "!node_modules/sherpa-onnx-win-*/**"
+    - "!node_modules/sherpa-onnx-darwin-*/**"
+  category: Office
+  icon: build/icon.png
+  maintainer: OnStage
+  synopsis: Church presentation software with offline AI verse detection
+  description: Church presentation software (songs, scripture, media, projector and stage display) with an offline AI assistant that shows Bible verses as they are mentioned.

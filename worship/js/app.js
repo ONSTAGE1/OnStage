@@ -8,6 +8,7 @@
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var esc = R.esc;
+  var DESKTOP = window.onstageDesktop || null; // set by the desktop app (Windows/Mac/Linux)
 
   /* ------------------------------------------------------------------ */
   /* Data                                                                */
@@ -259,6 +260,7 @@
     outputs = outputs.filter(function (w) { return w && !w.closed; });
     outputs.forEach(function (w) { try { w.postMessage(msg, "*"); } catch (e) {} });
     if (bc) try { bc.postMessage(msg); } catch (e) {}
+    if (DESKTOP) DESKTOP.pushState(msg.state);
     liveStage.render(st);
     $("#btnBlack").classList.toggle("on", ui.black);
     $("#btnClear").classList.toggle("on", ui.clear);
@@ -271,6 +273,13 @@
     if (e.data.type === "onstage-key") handleKey({ key: e.data.key, preventDefault: function () {}, target: document.body });
   });
   function openWindow(stage) {
+    if (DESKTOP) {
+      DESKTOP.openOutput({ role: stage ? "stage" : "output", displayId: (stage ? settings.stageDisplay : settings.outputDisplay) || null }).then(function (r) {
+        if (r && r.sameScreen && !stage) toast("Only one screen found, so the output opened in a window. Connect the projector, then use Screens.");
+        setTimeout(pushOutput, 300);
+      });
+      return;
+    }
     var w = window.open("output.html" + (stage ? "?stage=1" : ""), stage ? "onstage-stage" : "onstage-output",
       "popup=yes,width=" + (stage ? 1100 : 1280) + ",height=" + (stage ? 680 : 720));
     if (!w) { toast("Pop-up blocked – allow pop-ups for this page"); return; }
@@ -586,6 +595,7 @@
     listener.opts.quotes = settings.aiQuotes;
     listener.opts.interim = settings.aiInterim;
     listener.opts.cooldownMs = +settings.aiCooldown;
+    if (DESKTOP) DESKTOP.speech.options({ interim: !!settings.aiInterim });
     if (listener.opts.lang !== settings.aiLang) listener.setLang(settings.aiLang);
   }
 
@@ -757,6 +767,19 @@
   }
   function closeModal() { $("#modalBg").classList.remove("open"); }
 
+  /* Ask for one line of text in the app's own dialog (works in browsers and the desktop app). */
+  function askText(title, label, value) {
+    return new Promise(function (resolve) {
+      var answered = false;
+      var answer = function (v) { if (answered) return; answered = true; resolve(v); };
+      modal(title, '<div class="form"><label class="full">' + esc(label) + '<input id="fAsk" value="' + esc(value || "") + '"></label></div>',
+        [{ label: "Cancel", fn: function () { answer(null); } }, { label: "OK", primary: true, fn: function () { answer($("#fAsk").value); } }]);
+      var inp = $("#fAsk");
+      inp.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); answer(inp.value); closeModal(); } });
+      var iv = setInterval(function () { if (!$("#modalBg").classList.contains("open")) { clearInterval(iv); answer(null); } }, 200);
+    });
+  }
+
   function pickFile(accept, multiple) {
     return new Promise(function (resolve) {
       var inp = $("#fileInput");
@@ -906,8 +929,10 @@
         var sorted = Array.prototype.slice.call(fs).sort(function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true }); });
         uploadMedia(sorted).then(function (ms) {
           if (!ms.length) return;
-          var p = { id: Store.uid(), title: (prompt("Presentation name", "Imported slides") || "Imported slides"), images: ms.map(function (m) { return m.id; }) };
-          presentations.push(p); ui.selPres = p.id; saveSoon(); renderPres();
+          askText("Name this presentation", "Presentation name", "Imported slides").then(function (name) {
+            var p = { id: Store.uid(), title: (name || "").trim() || "Imported slides", images: ms.map(function (m) { return m.id; }) };
+            presentations.push(p); ui.selPres = p.id; saveSoon(); renderPres();
+          });
         });
       });
     },
@@ -921,14 +946,16 @@
       pickFile(".json,application/json").then(function (fs) {
         if (!fs || !fs[0]) return;
         readText(fs[0]).then(function (t) {
-          try {
-            var id = (prompt("Short name for this version (e.g. ESV, NKJV)", fs[0].name.replace(/\.[^.]+$/, "").toUpperCase()) || "").trim().toUpperCase();
+          return askText("Import a Bible", "Short name for this version (e.g. NIV, ESV, NKJV)", fs[0].name.replace(/\.[^.]+$/, "").toUpperCase()).then(function (name) {
+            var id = (name || "").trim().toUpperCase();
             if (!id) return;
-            var data = BibleReg.fromJSON(JSON.parse(t), id, id);
-            BibleReg.add(data);
-            Store.put("bibles", data).catch(function () {});
-            fillVersions(); toast(id + " imported");
-          } catch (e) { toast("Import failed: " + e.message); }
+            try {
+              var data = BibleReg.fromJSON(JSON.parse(t), id, id);
+              BibleReg.add(data);
+              Store.put("bibles", data).catch(function () {});
+              fillVersions(); toast(id + " imported");
+            } catch (e) { toast("Import failed: " + e.message); }
+          });
         });
       });
     },
@@ -951,6 +978,29 @@
       });
     },
 
+    screens: function () {
+      if (!DESKTOP) { toast("Click ▣ Output, drag that window onto the projector and double-click it for full screen."); return; }
+      DESKTOP.displays().then(function (list) {
+        var opts = function (cur) {
+          return '<option value="">Automatic</option>' + list.map(function (d) {
+            return '<option value="' + esc(d.id) + '"' + (String(cur || "") === d.id ? " selected" : "") + ">" + esc(d.label) + "</option>";
+          }).join("");
+        };
+        var note = list.length < 2
+          ? "Only one screen is connected. Connect the projector or TV and set it to <b>extend</b> the desktop (Windows: press <b>Win + P</b> → <b>Extend</b>; Mac: System Settings → Displays). It will then appear here."
+          : list.length + " screens connected. The output opens full screen on the screen you choose; the console stays on this screen.";
+        modal("Screens", '<p class="muted">' + note + '</p><div class="form">' +
+          '<label class="full">Main output (projector or TV)<select id="fOutDisp">' + opts(settings.outputDisplay) + "</select></label>" +
+          '<label class="full">Stage display (confidence monitor for the preacher or band)<select id="fStageDisp">' + opts(settings.stageDisplay) + "</select></label></div>",
+          [{ label: "Close output windows", fn: function () { DESKTOP.closeOutput(); } },
+           { label: "Show stage display", fn: function () { saveScreens(); openWindow(true); } },
+           { label: "Show output", primary: true, fn: function () { saveScreens(); openWindow(false); } }]);
+      });
+    },
+    notices: function () {
+      if (!DESKTOP) return;
+      DESKTOP.notices().then(function (t) { modal("Third-party notices", '<pre class="notices">' + esc(t || "") + "</pre>"); });
+    },
     messages: function () {
       modal("Alerts & stage messages",
         '<div class="form"><label class="full">Scrolling alert on the main screen (e.g. nursery call, car lights)<input id="fAlert" value="' + esc(ui.alert.text) + '" placeholder="Parent of child #42, please come to the nursery"></label>' +
@@ -967,16 +1017,25 @@
     },
     help: function () {
       modal("OnStage Worship — help",
-        '<p class="muted">Build your service in the <b>Schedule</b>, check slides in <b>Preview</b> and drive the projector from <b>Live</b>. Click <b>▣ Output</b> and drag that window onto the projector, then double-click it for full screen.</p>' +
+        '<p class="muted">Build your service in the <b>Schedule</b>, check slides in <b>Preview</b> and drive the projector from <b>Live</b>. ' +
+        (DESKTOP ? 'Click <b>▣ Output</b> and the output opens full screen on the projector (choose which screen under <b>Screens</b>). The stage display can go on a third screen.</p>'
+                 : 'Click <b>▣ Output</b> and drag that window onto the projector, then double-click it for full screen.</p>') +
         "<table>" + [["→ ↓ Space PgDn", "Next slide (moves on to the next schedule item at the end)"], ["← ↑ PgUp", "Previous slide"], ["1 – 9", "Jump to slide number in Live"], ["Enter", "Send Preview to Live"],
           ["B", "Black screen"], ["C", "Clear text (keep background)"], ["L", "Show logo"], ["Esc", "Clear live"], ["M", "Start / stop AI listening"], ["A", "Show the newest AI suggestion live"], ["Ctrl+S", "Save schedule"]]
           .map(function (r) { return "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td></tr>"; }).join("") + "</table>" +
         '<h3>AI Verse Assistant</h3><p class="muted">Press <b>Start listening</b> and point a microphone (or an audio feed from the desk) at the preacher. When a verse is mentioned — “John chapter three verse sixteen”, “Romans 8:28”, “first Corinthians thirteen four through seven” — it is put on screen automatically. ' +
         "It also recognises verses that are read aloud without a reference, and follow-ups like “verse 17” or “next verse”. Choose <b>Auto live</b>, <b>Auto preview</b> (you press Enter) or <b>Suggest only</b>. " +
         "Chapter-only mentions (“Mark 1”) are never shown automatically; they appear as suggestions.</p>" +
-        '<p class="muted">Speech recognition uses the browser’s built-in engine: use Google Chrome or Microsoft Edge and open the app over <code>http://localhost</code> or <code>https://</code>. Audio is processed by the browser’s speech service.</p>');
+        (DESKTOP
+          ? '<p class="muted">Speech recognition runs <b>offline on this computer</b> with a built-in Whisper model — no internet needed, and the audio never leaves this computer. For the best results plug in an audio feed from the sound desk (line-in or USB audio), or put a microphone close to the speaker.</p>'
+          : '<p class="muted">Speech recognition uses the browser’s built-in engine: use Google Chrome or Microsoft Edge and open the app over <code>http://localhost</code> or <code>https://</code>. Audio is processed by the browser’s speech service. The OnStage Worship desktop app recognises speech offline.</p>'));
     }
   };
+  function saveScreens() {
+    settings.outputDisplay = ($("#fOutDisp") && $("#fOutDisp").value) || null;
+    settings.stageDisplay = ($("#fStageDisp") && $("#fStageDisp").value) || null;
+    saveSoon();
+  }
   function countdownItem(now) {
     var at = $("#fAt").value, mins = Math.max(1, +$("#fMin").value || 5), label = $("#fLbl").value.trim();
     var it = { id: Store.uid(), kind: "countdown", minutes: mins, label: label, title: "Countdown " + (at || mins + " min") };
@@ -998,7 +1057,7 @@
     }
     if ($("#modalBg").classList.contains("open")) { if (e.key === "Escape") closeModal(); return; }
     var k = e.key;
-    if ((e.ctrlKey || e.metaKey) && (k === "s" || k === "S")) { e.preventDefault(); ACTIONS.saveSchedule(); return; }
+    if ((e.ctrlKey || e.metaKey) && (k === "s" || k === "S")) { e.preventDefault(); if (!DESKTOP) ACTIONS.saveSchedule(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k === "ArrowRight" || k === "ArrowDown" || k === "PageDown" || k === " ") { e.preventDefault(); step(1); }
     else if (k === "ArrowLeft" || k === "ArrowUp" || k === "PageUp") { e.preventDefault(); step(-1); }
@@ -1026,6 +1085,18 @@
     });
     document.addEventListener("keydown", handleKey);
     $("#modalBg").addEventListener("mousedown", function (e) { if (e.target === this) closeModal(); });
+    // Dropping a file anywhere except the song list must never navigate away from the app.
+    document.addEventListener("dragover", function (e) { e.preventDefault(); });
+    document.addEventListener("drop", function (e) { if (!(e.target.closest && e.target.closest("#songList"))) e.preventDefault(); });
+
+    if (DESKTOP) {
+      document.body.classList.add("desktop");
+      DESKTOP.onMenu(function (action) { if (ACTIONS[action]) ACTIONS[action](); });
+      DESKTOP.onOutputKey(function (k) { handleKey({ key: k, preventDefault: function () {}, target: document.body }); });
+      var langSel = $("#optLang");
+      if (langSel && langSel.closest("label")) langSel.closest("label").style.display = "none";
+      $("#aiStatus").textContent = "Listens to the preacher and puts Bible verses on screen the moment they are mentioned. Works offline.";
+    }
 
     // tabs
     $$("#tabs button").forEach(function (b) {

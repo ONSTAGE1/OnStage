@@ -5,6 +5,30 @@ Church presentation software with an AI assistant that listens to the
 preacher and shows Bible verses on screen automatically.
 
 
+RECOMMENDED: THE DESKTOP APP (WORKS FULLY OFFLINE)
+-------------------------------------------------
+OnStage Worship is also a normal installable program:
+
+  Windows:  OnStage-Worship-Setup-1.0.0.exe
+            Double-click it. It installs in seconds (no administrator
+            password), puts "OnStage Worship" on the Desktop and Start menu,
+            and opens the app. If Windows says "Windows protected your PC",
+            click "More info" and then "Run anyway" (the program is new and
+            not yet code-signed).
+  Mac:      OnStage-Worship-1.0.0-mac-arm64.dmg (Apple Silicon) or
+            OnStage-Worship-1.0.0-mac-x64.dmg (Intel). Open it and drag
+            OnStage Worship into Applications.
+  Linux:    OnStage-Worship-1.0.0-linux-x86_64.AppImage or the .deb file.
+
+In the desktop app the AI listens with a speech engine built into the
+program: no internet, no Chrome or Edge, and the audio never leaves the
+computer. The output opens full screen on the projector by itself
+(use the "Screens" button to choose which screen).
+
+Everything below is about the browser version in this folder, which still
+works if you prefer it.
+
+
 INSTALL ON WINDOWS (10 or 11)
 -----------------------------
 1. Right-click the downloaded zip file and choose "Extract All...".
